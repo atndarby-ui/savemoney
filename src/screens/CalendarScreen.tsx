@@ -14,6 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, DailySummary, Category } from '../types';
 import { formatCurrency, formatCompactCurrency, isSameDay } from '../utils/format';
 import { Ionicons } from '@expo/vector-icons';
+import FloatingButtons from '../components/FloatingButtons';
 
 interface CalendarScreenProps {
     transactions: Transaction[];
@@ -147,244 +148,249 @@ export default function CalendarScreen({
     const netCashflow = currentSummary.income - currentSummary.expense;
 
     return (
-        <ScrollView
-            style={[styles.container, isDark && styles.containerDark]}
-            contentContainerStyle={styles.content}
-        >
-            {/* Header */}
-            <View style={styles.headerRow}>
-                <View style={styles.headerLeft}>
-                    <TouchableOpacity
-                        style={[styles.profileButton, isDark && styles.profileButtonDark]}
-                        onPress={() => navigation.navigate('Profile')}
-                    >
-                        {avatarUri ? (
-                            <Image source={{ uri: avatarUri }} style={styles.avatarImageHeader} />
-                        ) : (
-                            <Ionicons name="person-circle-outline" size={32} color={isDark ? '#FFF' : '#374151'} />
-                        )}
-                    </TouchableOpacity>
-                    <View>
-                        <Text style={[styles.subtitle, isDark && styles.textLight]}>
-                            {t.overview}
-                        </Text>
-                        <Text style={[styles.title, isDark && styles.textDark]}>
-                            {userName ? (language === 'Tiếng Việt' ? `Chào, ${userName}` : `Hi, ${userName}`) : (language === 'Tiếng Việt'
-                                ? `Tháng ${currentDate.getMonth() + 1}`
-                                : currentDate.toLocaleString('en-US', {
-                                    month: 'long',
-                                    year: 'numeric',
-                                }))}
-                        </Text>
+        <View style={{ flex: 1 }}>
+            <ScrollView
+                style={[styles.container, isDark && styles.containerDark]}
+                contentContainerStyle={styles.content}
+            >
+                {/* Header */}
+                <View style={styles.headerRow}>
+                    <View style={styles.headerLeft}>
+                        <TouchableOpacity
+                            style={[styles.profileButton, isDark && styles.profileButtonDark]}
+                            onPress={() => navigation.navigate('Profile')}
+                        >
+                            {avatarUri ? (
+                                <Image source={{ uri: avatarUri }} style={styles.avatarImageHeader} />
+                            ) : (
+                                <Ionicons name="person-circle-outline" size={32} color={isDark ? '#FFF' : '#374151'} />
+                            )}
+                        </TouchableOpacity>
+                        <View>
+                            <Text style={[styles.subtitle, isDark && styles.textLight]}>
+                                {t.overview}
+                            </Text>
+                            <Text style={[styles.title, isDark && styles.textDark]}>
+                                {userName ? (language === 'Tiếng Việt' ? `Chào, ${userName}` : `Hi, ${userName}`) : (language === 'Tiếng Việt'
+                                    ? `Tháng ${currentDate.getMonth() + 1}`
+                                    : currentDate.toLocaleString('en-US', {
+                                        month: 'long',
+                                        year: 'numeric',
+                                    }))}
+                            </Text>
+                        </View>
+                    </View>
+                    <View style={styles.monthButtons}>
+                        <TouchableOpacity
+                            style={[styles.monthButton, isDark && styles.monthButtonDark]}
+                            onPress={() => changeMonth(-1)}
+                        >
+                            <Ionicons name="chevron-back" size={20} color={isDark ? '#FFF' : '#374151'} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.monthButton, isDark && styles.monthButtonDark]}
+                            onPress={() => changeMonth(1)}
+                        >
+                            <Ionicons name="chevron-forward" size={20} color={isDark ? '#FFF' : '#374151'} />
+                        </TouchableOpacity>
                     </View>
                 </View>
-                <View style={styles.monthButtons}>
-                    <TouchableOpacity
-                        style={[styles.monthButton, isDark && styles.monthButtonDark]}
-                        onPress={() => changeMonth(-1)}
-                    >
-                        <Ionicons name="chevron-back" size={20} color={isDark ? '#FFF' : '#374151'} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.monthButton, isDark && styles.monthButtonDark]}
-                        onPress={() => changeMonth(1)}
-                    >
-                        <Ionicons name="chevron-forward" size={20} color={isDark ? '#FFF' : '#374151'} />
-                    </TouchableOpacity>
-                </View>
-            </View>
 
-            {/* Calendar Grid */}
-            <View style={[styles.calendarCard, isDark && styles.calendarCardDark]}>
-                <View style={styles.weekDays}>
-                    {t.days.map((d, i) => (
-                        <Text key={i} style={[styles.weekDay, isDark && styles.textLight]}>
-                            {d}
-                        </Text>
-                    ))}
-                </View>
-                <View style={styles.daysGrid}>
-                    {daysInMonth.map((date, index) => {
-                        if (!date)
-                            return <View key={`empty-${index}`} style={styles.dayCell} />;
-                        const summary = dailySummaries[date.toDateString()];
-                        const isSelected = isSameDay(date, selectedDate);
-                        const hasIncome = summary && summary.income > 0;
-                        const hasExpense = summary && summary.expense > 0;
+                {/* Calendar Grid */}
+                <View style={[styles.calendarCard, isDark && styles.calendarCardDark]}>
+                    <View style={styles.weekDays}>
+                        {t.days.map((d, i) => (
+                            <Text key={i} style={[styles.weekDay, isDark && styles.textLight]}>
+                                {d}
+                            </Text>
+                        ))}
+                    </View>
+                    <View style={styles.daysGrid}>
+                        {daysInMonth.map((date, index) => {
+                            if (!date)
+                                return <View key={`empty-${index}`} style={styles.dayCell} />;
+                            const summary = dailySummaries[date.toDateString()];
+                            const isSelected = isSameDay(date, selectedDate);
+                            const hasIncome = summary && summary.income > 0;
+                            const hasExpense = summary && summary.expense > 0;
 
-                        return (
-                            <TouchableOpacity
-                                key={date.toISOString()}
-                                style={styles.dayCell}
-                                onPress={() => setSelectedDate(date)}
-                            >
-                                <View
-                                    style={[
-                                        styles.dayCircle,
-                                        isSelected && styles.dayCircleSelected,
-                                        isSelected && isDark && styles.dayCircleSelectedDark,
-                                    ]}
+                            return (
+                                <TouchableOpacity
+                                    key={date.toISOString()}
+                                    style={styles.dayCell}
+                                    onPress={() => setSelectedDate(date)}
                                 >
-                                    <Text
+                                    <View
                                         style={[
-                                            styles.dayText,
-                                            isSelected && styles.dayTextSelected,
-                                            !isSelected && isDark && styles.textLight,
+                                            styles.dayCircle,
+                                            isSelected && styles.dayCircleSelected,
+                                            isSelected && isDark && styles.dayCircleSelectedDark,
                                         ]}
                                     >
-                                        {date.getDate()}
-                                    </Text>
-                                </View>
-                                <View style={styles.indicators}>
-                                    {hasIncome && <View style={[styles.dotIndicator, styles.incomeDot]} />}
-                                    {hasExpense && <View style={[styles.dotIndicator, styles.expenseDot]} />}
-                                </View>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-            </View>
-
-            {/* Summary Cards */}
-            <View style={styles.summaryRow}>
-                <View style={[styles.summaryCard, isDark && styles.summaryCardDark]}>
-                    <View style={[styles.iconCircle, styles.incomeIconBg]}>
-                        <Ionicons name="arrow-down" size={16} color="#10b981" />
+                                        <Text
+                                            style={[
+                                                styles.dayText,
+                                                isSelected && styles.dayTextSelected,
+                                                !isSelected && isDark && styles.textLight,
+                                            ]}
+                                        >
+                                            {date.getDate()}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.indicators}>
+                                        {hasIncome && <View style={[styles.dotIndicator, styles.incomeDot]} />}
+                                        {hasExpense && <View style={[styles.dotIndicator, styles.expenseDot]} />}
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
-                    <Text style={[styles.summaryLabel, isDark && styles.textLight]}>
-                        {t.income}
-                    </Text>
-                    <Text style={[styles.summaryValue, styles.incomeText]}>
-                        {formatCompactCurrency(selectedDaySummary.inc)}
-                    </Text>
                 </View>
-                <View style={[styles.summaryCard, isDark && styles.summaryCardDark]}>
-                    <View style={[styles.iconCircle, styles.expenseIconBg]}>
-                        <Ionicons name="arrow-up" size={16} color="#f43f5e" />
-                    </View>
-                    <Text style={[styles.summaryLabel, isDark && styles.textLight]}>
-                        {t.expense}
-                    </Text>
-                    <Text style={[styles.summaryValue, isDark && styles.textDark]}>
-                        {formatCompactCurrency(selectedDaySummary.exp)}
-                    </Text>
-                </View>
-            </View>
 
-            {/* Selected Day Transactions */}
-            <View style={[styles.transactionsCard, isDark && styles.transactionsCardDark]}>
-                <View style={styles.transactionsHeader}>
-                    <View style={styles.dateTag}>
-                        <Text style={[styles.dateTagText, isDark && styles.textDark]}>
-                            {selectedDate.getDate()}/{selectedDate.getMonth() + 1}
+                {/* Summary Cards */}
+                <View style={styles.summaryRow}>
+                    <View style={[styles.summaryCard, isDark && styles.summaryCardDark]}>
+                        <View style={[styles.iconCircle, styles.incomeIconBg]}>
+                            <Ionicons name="arrow-down" size={16} color="#10b981" />
+                        </View>
+                        <Text style={[styles.summaryLabel, isDark && styles.textLight]}>
+                            {t.income}
+                        </Text>
+                        <Text style={[styles.summaryValue, styles.incomeText]}>
+                            {formatCompactCurrency(selectedDaySummary.inc)}
                         </Text>
                     </View>
-                    <Text style={[styles.detailsLabel, isDark && styles.textLight]}>
-                        {t.details}
-                    </Text>
-                </View>
-
-                {selectedDayTransactions.length === 0 ? (
-                    <Text style={[styles.noTxText, isDark && styles.textLight]}>
-                        {t.noTx}
-                    </Text>
-                ) : (
-                    selectedDayTransactions.map((tx) => {
-                        const cat = categories.find((c) => c.id === tx.categoryId);
-                        return (
-                            <TouchableOpacity
-                                key={tx.id}
-                                style={styles.txItem}
-                                onPress={() => navigation.navigate('AddTransaction', {
-                                    initialData: {
-                                        ...tx,
-                                        category: tx.categoryId,
-                                        date: tx.date.toISOString(),
-                                    }
-                                })}
-                            >
-                                <View style={styles.txLeft}>
-                                    <View
-                                        style={[styles.txIcon, isDark && styles.txIconDark]}
-                                    >
-                                        <Text style={styles.txIconText}>{cat?.icon}</Text>
-                                    </View>
-                                    <View>
-                                        <Text style={[styles.txName, isDark && styles.textDark]}>
-                                            {cat?.name}
-                                        </Text>
-                                        {tx.note && (
-                                            <Text style={[styles.txNote, isDark && styles.textLight]}>
-                                                {tx.note}
-                                            </Text>
-                                        )}
-                                        {tx.imageUri && (
-                                            <TouchableOpacity
-                                                style={styles.receiptTag}
-                                                onPress={() => setViewerImage(tx.imageUri || null)}
-                                            >
-                                                <Ionicons name="image-outline" size={12} color="#10b981" />
-                                                <Text style={styles.receiptTagText}>Đã đính kèm HĐ</Text>
-                                            </TouchableOpacity>
-                                        )}
-                                    </View>
-                                </View>
-                                <Text
-                                    style={[
-                                        styles.txAmount,
-                                        tx.type === 'expense'
-                                            ? isDark
-                                                ? styles.textDark
-                                                : styles.expenseAmount
-                                            : styles.incomeAmount,
-                                    ]}
-                                >
-                                    {tx.type === 'expense' ? '-' : '+'}
-                                    {formatCurrency(tx.amount)}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })
-                )}
-            </View>
-
-            {/* Net Cashflow */}
-            <View style={[styles.cashflowCard, isDark && styles.cashflowCardDark]}>
-                <Text style={[styles.cashflowLabel, isDark && styles.cashflowLabelDark]}>
-                    {t.netCashflow}
-                </Text>
-                <Text style={styles.cashflowValue}>
-                    {netCashflow > 0 ? '+' : ''}
-                    {formatCurrency(netCashflow)}
-                </Text>
-            </View>
-            {/* Image Viewer Modal */}
-            <Modal
-                visible={!!viewerImage}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setViewerImage(null)}
-            >
-                <View style={styles.modalContainer}>
-                    <Pressable style={styles.modalOverlay} onPress={() => setViewerImage(null)} />
-                    <View style={styles.modalContent}>
-                        <TouchableOpacity
-                            style={styles.closeButton}
-                            onPress={() => setViewerImage(null)}
-                        >
-                            <Ionicons name="close" size={28} color="#FFF" />
-                        </TouchableOpacity>
-                        {viewerImage && (
-                            <Image
-                                source={{ uri: viewerImage }}
-                                style={styles.fullImage}
-                                resizeMode="contain"
-                            />
-                        )}
+                    <View style={[styles.summaryCard, isDark && styles.summaryCardDark]}>
+                        <View style={[styles.iconCircle, styles.expenseIconBg]}>
+                            <Ionicons name="arrow-up" size={16} color="#f43f5e" />
+                        </View>
+                        <Text style={[styles.summaryLabel, isDark && styles.textLight]}>
+                            {t.expense}
+                        </Text>
+                        <Text style={[styles.summaryValue, isDark && styles.textDark]}>
+                            {formatCompactCurrency(selectedDaySummary.exp)}
+                        </Text>
                     </View>
                 </View>
-            </Modal>
-        </ScrollView>
+
+                {/* Selected Day Transactions */}
+                <View style={[styles.transactionsCard, isDark && styles.transactionsCardDark]}>
+                    <View style={styles.transactionsHeader}>
+                        <View style={styles.dateTag}>
+                            <Text style={[styles.dateTagText, isDark && styles.textDark]}>
+                                {selectedDate.getDate()}/{selectedDate.getMonth() + 1}
+                            </Text>
+                        </View>
+                        <Text style={[styles.detailsLabel, isDark && styles.textLight]}>
+                            {t.details}
+                        </Text>
+                    </View>
+
+                    {selectedDayTransactions.length === 0 ? (
+                        <Text style={[styles.noTxText, isDark && styles.textLight]}>
+                            {t.noTx}
+                        </Text>
+                    ) : (
+                        selectedDayTransactions.map((tx) => {
+                            const cat = categories.find((c) => c.id === tx.categoryId);
+                            return (
+                                <TouchableOpacity
+                                    key={tx.id}
+                                    style={styles.txItem}
+                                    onPress={() => navigation.navigate('AddTransaction', {
+                                        initialData: {
+                                            ...tx,
+                                            category: tx.categoryId,
+                                            date: tx.date.toISOString(),
+                                        }
+                                    })}
+                                >
+                                    <View style={styles.txLeft}>
+                                        <View
+                                            style={[styles.txIcon, isDark && styles.txIconDark]}
+                                        >
+                                            <Text style={styles.txIconText}>{cat?.icon}</Text>
+                                        </View>
+                                        <View>
+                                            <Text style={[styles.txName, isDark && styles.textDark]}>
+                                                {cat?.name}
+                                            </Text>
+                                            {tx.note && (
+                                                <Text style={[styles.txNote, isDark && styles.textLight]}>
+                                                    {tx.note}
+                                                </Text>
+                                            )}
+                                            {tx.imageUri && (
+                                                <TouchableOpacity
+                                                    style={styles.receiptTag}
+                                                    onPress={() => setViewerImage(tx.imageUri || null)}
+                                                >
+                                                    <Ionicons name="image-outline" size={12} color="#10b981" />
+                                                    <Text style={styles.receiptTagText}>Đã đính kèm HĐ</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    </View>
+                                    <Text
+                                        style={[
+                                            styles.txAmount,
+                                            tx.type === 'expense'
+                                                ? isDark
+                                                    ? styles.textDark
+                                                    : styles.expenseAmount
+                                                : styles.incomeAmount,
+                                        ]}
+                                    >
+                                        {tx.type === 'expense' ? '-' : '+'}
+                                        {formatCurrency(tx.amount)}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })
+                    )}
+                </View>
+
+                {/* Net Cashflow */}
+                <View style={[styles.cashflowCard, isDark && styles.cashflowCardDark]}>
+                    <Text style={[styles.cashflowLabel, isDark && styles.cashflowLabelDark]}>
+                        {t.netCashflow}
+                    </Text>
+                    <Text style={styles.cashflowValue}>
+                        {netCashflow > 0 ? '+' : ''}
+                        {formatCurrency(netCashflow)}
+                    </Text>
+                </View>
+                {/* Image Viewer Modal */}
+                <Modal
+                    visible={!!viewerImage}
+                    transparent={true}
+                    animationType="fade"
+                    onRequestClose={() => setViewerImage(null)}
+                >
+                    <View style={styles.modalContainer}>
+                        <Pressable style={styles.modalOverlay} onPress={() => setViewerImage(null)} />
+                        <View style={styles.modalContent}>
+                            <TouchableOpacity
+                                style={styles.closeButton}
+                                onPress={() => setViewerImage(null)}
+                            >
+                                <Ionicons name="close" size={28} color="#FFF" />
+                            </TouchableOpacity>
+                            {viewerImage && (
+                                <Image
+                                    source={{ uri: viewerImage }}
+                                    style={styles.fullImage}
+                                    resizeMode="contain"
+                                />
+                            )}
+                        </View>
+                    </View>
+                </Modal>
+            </ScrollView>
+
+            {/* Floating Action Buttons */}
+            <FloatingButtons navigation={navigation} theme={theme} />
+        </View>
     );
 }
 

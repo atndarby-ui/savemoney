@@ -129,7 +129,8 @@ export default function App() {
       ...newTx,
       id: Math.random().toString(36).substr(2, 9),
     };
-    setTransactions([tx, ...transactions]);
+    // Use functional update to avoid race condition
+    setTransactions(prevTransactions => [tx, ...prevTransactions]);
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => {
@@ -240,7 +241,7 @@ export default function App() {
         listeners={({ navigation }) => ({
           tabPress: (e) => {
             e.preventDefault();
-            navigation.navigate('SmartInput');
+            navigation.navigate('AddTransaction');
           },
         })}
       />

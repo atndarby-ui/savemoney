@@ -1,44 +1,71 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
-    Text,
     TouchableOpacity,
     StyleSheet,
-    Dimensions,
     Alert,
     ActivityIndicator,
-    Platform
+    Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-
 import { CATEGORIES } from '../constants';
 
-interface SmartInputScreenProps {
+interface FloatingButtonsProps {
     navigation: any;
-    route: any;
+    theme?: 'light' | 'dark';
 }
 
-export default function SmartInputScreen({ navigation }: SmartInputScreenProps) {
-    const [theme, setTheme] = useState<'light' | 'dark'>('light'); // Get from context/props if possible
-    const isDark = theme === 'dark';
-
+export default function FloatingButtons({ navigation, theme = 'light' }: FloatingButtonsProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [permissionResponse, requestPermission] = Audio.usePermissions();
 
-    const handleClose = () => {
-        navigation.goBack();
-    };
+    // Animation values
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+    const pulseAnim = useRef(new Animated.Value(1)).current;
 
-    const handleManualInput = () => {
-        // Navigate to manual input modal
-        navigation.navigate('AddTransaction');
-    };
+    const isDark = theme === 'dark';
+
+    // Animate when recording state changes
+    useEffect(() => {
+        if (recording) {
+            // Scale up and start pulsing
+            Animated.parallel([
+                Animated.spring(scaleAnim, {
+                    toValue: 1.5,
+                    useNativeDriver: true,
+                    friction: 5,
+                }),
+                Animated.loop(
+                    Animated.sequence([
+                        Animated.timing(pulseAnim, {
+                            toValue: 1.1,
+                            duration: 800,
+                            useNativeDriver: true,
+                        }),
+                        Animated.timing(pulseAnim, {
+                            toValue: 1,
+                            duration: 800,
+                            useNativeDriver: true,
+                        }),
+                    ])
+                ),
+            ]).start();
+        } else {
+            // Scale back to normal
+            Animated.parallel([
+                Animated.spring(scaleAnim, {
+                    toValue: 1,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+            pulseAnim.setValue(1);
+        }
+    }, [recording]);
 
     // --- AI PROCESSING ---
     const processContentWithGemini = async (base64Data: string, mimeType: string, type: 'image' | 'audio', localUri?: string) => {
@@ -231,7 +258,7 @@ export default function SmartInputScreen({ navigation }: SmartInputScreenProps) 
 
             const result = await ImagePicker.launchCameraAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: false, // SKIP CROP - ONE STEP ONLY!
+                allowsEditing: false,
                 quality: 0.6,
                 base64: true,
             });
@@ -310,7 +337,6 @@ export default function SmartInputScreen({ navigation }: SmartInputScreenProps) 
 
             if (uri) {
                 const base64Audio = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
-                // Note: HIGH_QUALITY preset usually outputs .m4a
                 await processContentWithGemini(base64Audio, 'audio/mp4', 'audio');
             }
         } catch (error) {
@@ -318,234 +344,95 @@ export default function SmartInputScreen({ navigation }: SmartInputScreenProps) 
         }
     };
 
-
     return (
         <View style={styles.container}>
+            {/* Scan Receipt Button */}
             <TouchableOpacity
-                style={styles.overlay}
-                activeOpacity={1}
-                onPress={handleClose}
-            />
-            <View style={styles.sheet}>
-                <View style={styles.content}>
-                    {/* Handle for sheet */}
-                    <View style={styles.header}>
-                        <View style={styles.handle} />
-                    </View>
+                style={[
+                    styles.floatingButton,
+                    styles.scanButton,
+                    isDark && styles.buttonDark,
+                    isLoading && styles.buttonDisabled
+                ]}
+                onPress={handleScanReceipt}
+                disabled={isLoading || !!recording}
+                activeOpacity={0.8}
+            >
+                {isLoading ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                    <Ionicons name="camera" size={24} color="#FFFFFF" />
+                )}
+            </TouchableOpacity>
 
-                    <Text style={[styles.title, isDark && styles.textDark]}>
-                        AI Smart Input
-                    </Text>
-
-                    <Text style={[styles.subtitle, isDark && styles.textLight]}>
-                        Nói, chụp ảnh hoặc nhập văn bản.{'\n'}
-                        Gemini sẽ tự động điền form cho bạn.
-                    </Text>
-
-                    {/* Mic Button */}
-                    <View style={styles.micContainer}>
-                        <TouchableOpacity
-                            style={[
-                                styles.micButton,
-                                isDark && styles.micButtonDark,
-                                recording && styles.micButtonRecording
-                            ]}
-                            onPress={toggleRecording}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? (
-                                <ActivityIndicator color="#FFF" size="large" />
-                            ) : (
-                                <Ionicons name={recording ? "stop" : "mic"} size={44} color="#FFFFFF" />
-                            )}
-                        </TouchableOpacity>
-                        <Text style={[styles.micLabel, isDark && styles.textLight]}>
-                            {recording ? 'ĐANG NGHE...' : (isLoading ? 'ĐANG XỬ LÝ...' : 'CHẠM ĐỂ NÓI')}
-                        </Text>
-                    </View>
-
-                    {/* Actions Row */}
-                    <View style={styles.actionsRow}>
-                        <TouchableOpacity
-                            style={[styles.actionButton, isDark && styles.actionButtonDark]}
-                            onPress={handleScanReceipt}
-                            disabled={isLoading || !!recording}
-                        >
-                            <View style={styles.iconCircle}>
-                                <Ionicons name="camera" size={26} color="#6366F1" />
-                            </View>
-                            <Text style={[styles.actionText, isDark && styles.textDark]}>
-                                Quét hóa đơn
-                            </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[styles.actionButton, isDark && styles.actionButtonDark]}
-                            onPress={handleManualInput}
-                            disabled={isLoading || !!recording}
-                        >
-                            <View style={[styles.iconCircle, { backgroundColor: '#ECFDF5' }]}>
-                                <Ionicons name="create" size={26} color="#10B981" />
-                            </View>
-                            <Text style={[styles.actionText, isDark && styles.textDark]}>
-                                Nhập văn bản
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <TouchableOpacity onPress={handleManualInput} style={styles.manualLink}>
-                        <Text style={styles.manualLinkText}>
-                            Chuyển sang nhập thủ công
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
+            {/* Voice Input Button */}
+            <Animated.View
+                style={{
+                    transform: [
+                        { scale: Animated.multiply(scaleAnim, pulseAnim) }
+                    ]
+                }}
+            >
+                <TouchableOpacity
+                    style={[
+                        styles.floatingButton,
+                        styles.voiceButton,
+                        isDark && styles.buttonDark,
+                        recording && styles.recordingButton,
+                        isLoading && styles.buttonDisabled
+                    ]}
+                    onPress={toggleRecording}
+                    disabled={isLoading}
+                    activeOpacity={0.8}
+                >
+                    {isLoading ? (
+                        <ActivityIndicator color="#FFF" size="small" />
+                    ) : (
+                        <Ionicons
+                            name={recording ? "stop" : "mic"}
+                            size={24}
+                            color="#FFFFFF"
+                        />
+                    )}
+                </TouchableOpacity>
+            </Animated.View>
         </View>
     );
 }
 
-const { width } = Dimensions.get('window');
-
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
-        backgroundColor: 'transparent',
-        justifyContent: 'flex-end',
+        position: 'absolute',
+        bottom: 100, // Above the tab bar
+        right: 16,
+        gap: 12,
     },
-    overlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-    },
-    sheet: {
-        height: '65%',
-        backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: 32,
-        borderTopRightRadius: 32,
-        overflow: 'hidden',
-    },
-    sheetDark: {
-        backgroundColor: '#111827',
-    },
-    header: {
-        alignItems: 'center',
-        paddingVertical: 12,
-        width: '100%',
-    },
-    handle: {
-        width: 40,
-        height: 5,
-        backgroundColor: '#E5E7EB',
-        borderRadius: 2.5,
-    },
-    content: {
-        flex: 1,
-        alignItems: 'center',
-        paddingHorizontal: 24,
-    },
-    title: {
-        fontSize: 26,
-        fontWeight: '900',
-        color: '#111827',
-        marginBottom: 8,
-        textAlign: 'center',
-    },
-    subtitle: {
-        fontSize: 15,
-        color: '#6B7280',
-        textAlign: 'center',
-        lineHeight: 22,
-        marginBottom: 40,
-        fontWeight: '500',
-    },
-    micContainer: {
-        alignItems: 'center',
-        marginBottom: 45,
-    },
-    micButton: {
-        width: 90,
-        height: 90,
-        borderRadius: 45,
-        backgroundColor: '#111827',
+    floatingButton: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 16,
-        shadowColor: '#111827',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.3,
-        shadowRadius: 15,
-        elevation: 12,
-    },
-    micButtonDark: {
-        backgroundColor: '#10b981',
-        shadowColor: '#10b981',
-    },
-    micButtonRecording: {
-        backgroundColor: '#EF4444',
-        shadowColor: '#EF4444',
-    },
-    micLabel: {
-        fontSize: 13,
-        fontWeight: '800',
-        color: '#9CA3AF',
-        textTransform: 'uppercase',
-        letterSpacing: 1.5,
-        textAlign: 'center',
-    },
-    actionsRow: {
-        flexDirection: 'row',
-        gap: 16,
-        width: '100%',
-        marginBottom: 30,
-    },
-    actionButton: {
-        flex: 1,
-        height: 110,
-        backgroundColor: '#F9FAFB',
-        borderRadius: 24,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#F3F4F6',
-        padding: 12,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
     },
-    actionButtonDark: {
-        backgroundColor: '#1F2937',
-        borderColor: '#374151',
+    scanButton: {
+        backgroundColor: '#00D9FF', // Bright Cyan for camera
     },
-    iconCircle: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: '#EEF2FF',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 10,
+    voiceButton: {
+        backgroundColor: '#8B5CF6', // Vibrant Purple for voice
     },
-    actionText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#111827',
-        textAlign: 'center',
+    recordingButton: {
+        backgroundColor: '#FF6B6B', // Bright Coral Red when recording
     },
-    manualLink: {
-        marginTop: 'auto',
-        marginBottom: 35,
+    buttonDark: {
+        shadowColor: '#10b981',
+        shadowOpacity: 0.5,
     },
-    manualLinkText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#9CA3AF',
-        textDecorationLine: 'underline',
-    },
-    textDark: {
-        color: '#FFFFFF',
-    },
-    textLight: {
-        color: '#9CA3AF',
+    buttonDisabled: {
+        opacity: 0.6,
     },
 });
