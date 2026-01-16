@@ -3,12 +3,12 @@ import { StatusBar, useColorScheme, View, TouchableOpacity, StyleSheet, Text } f
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Transaction, Message, Category } from './src/types';
 import { INITIAL_TRANSACTIONS, CATEGORIES } from './src/constants';
+import { Database } from './src/services/Database';
 
 import CalendarScreen from './src/screens/CalendarScreen';
 import StatisticsScreen from './src/screens/StatisticsScreen';
@@ -54,6 +54,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>(CATEGORIES);
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const [selectedPersonalityId, setSelectedPersonalityId] = useState('super_accountant');
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -62,31 +63,30 @@ export default function App() {
 
   const loadData = async () => {
     try {
-      const [savedTheme, savedLang, savedTx, savedChat, savedCategories] = await Promise.all([
-        AsyncStorage.getItem('app_theme'),
-        AsyncStorage.getItem('app_lang'),
-        AsyncStorage.getItem('mintflow_transactions'),
-        AsyncStorage.getItem('mintflow_chat_history'),
-        AsyncStorage.getItem('mintflow_categories'),
+      await Database.init();
+
+      const [savedTheme, savedLang, savedPersonality] = await Promise.all([
+        Database.getMetadata('app_theme'),
+        Database.getMetadata('app_lang'),
+        Database.getMetadata('app_personality'),
       ]);
 
       if (savedTheme) setTheme(savedTheme as 'light' | 'dark');
       if (savedLang) setLanguage(savedLang as 'Tiếng Việt' | 'English');
+      if (savedPersonality) setSelectedPersonalityId(savedPersonality);
 
-      if (savedTx) {
-        const parsed = JSON.parse(savedTx);
-        setTransactions(parsed.map((tx: any) => ({ ...tx, date: new Date(tx.date) })));
-      } else {
-        setTransactions(INITIAL_TRANSACTIONS);
+      const loadedTransactions = await Database.getTransactions();
+      setTransactions(loadedTransactions);
+
+      const loadedCategories = await Database.getCategories();
+      // Only set if we have categories, otherwise initialization in DB should have handled it or we use default state
+      if (loadedCategories.length > 0) {
+        setCategories(loadedCategories);
       }
 
-      if (savedCategories) {
-        setCategories(JSON.parse(savedCategories));
-      }
+      const loadedChat = await Database.getChatHistory();
+      setChatMessages(loadedChat);
 
-      if (savedChat) {
-        setChatMessages(JSON.parse(savedChat));
-      }
       setIsLoaded(true);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -94,64 +94,82 @@ export default function App() {
     }
   };
 
+  // Sync Theme/Lang to DB
   useEffect(() => {
     if (isLoaded) {
-      AsyncStorage.setItem('app_theme', theme);
+      Database.setMetadata('app_theme', theme);
     }
   }, [theme, isLoaded]);
 
   useEffect(() => {
     if (isLoaded) {
-      AsyncStorage.setItem('app_lang', language);
+      Database.setMetadata('app_lang', language);
     }
   }, [language, isLoaded]);
 
   useEffect(() => {
     if (isLoaded) {
-      AsyncStorage.setItem('mintflow_transactions', JSON.stringify(transactions));
+      Database.setMetadata('app_personality', selectedPersonalityId);
     }
-  }, [transactions, isLoaded]);
+  }, [selectedPersonalityId, isLoaded]);
 
-  useEffect(() => {
-    if (isLoaded) {
-      AsyncStorage.setItem('mintflow_categories', JSON.stringify(categories));
-    }
-  }, [categories, isLoaded]);
-
-  useEffect(() => {
-    if (isLoaded) {
-      AsyncStorage.setItem('mintflow_chat_history', JSON.stringify(chatMessages));
-    }
-  }, [chatMessages, isLoaded]);
-
-  const handleAddTransaction = (newTx: Omit<Transaction, 'id'>) => {
+  // DB Sync Wrappers
+  const handleAddTransaction = async (newTx: Omit<Transaction, 'id'>) => {
     const tx: Transaction = {
       ...newTx,
       id: Math.random().toString(36).substr(2, 9),
     };
-    // Use functional update to avoid race condition
+    await Database.addTransaction(tx);
     setTransactions(prevTransactions => [tx, ...prevTransactions]);
   };
 
-  const handleUpdateTransaction = (updatedTx: Transaction) => {
+  const handleUpdateTransaction = async (updatedTx: Transaction) => {
+    await Database.updateTransaction(updatedTx);
     setTransactions(transactions.map(tx => tx.id === updatedTx.id ? updatedTx : tx));
   };
 
-  const handleDeleteTransaction = (id: string) => {
+  const handleDeleteTransaction = async (id: string) => {
+    await Database.deleteTransaction(id);
     setTransactions(transactions.filter(tx => tx.id !== id));
   };
 
-  const handleAddCategory = (newCat: Category) => {
+  const handleAddCategory = async (newCat: Category) => {
+    await Database.addCategory(newCat);
     setCategories([...categories, newCat]);
   };
 
-  const handleUpdateCategory = (updatedCat: Category) => {
+  const handleUpdateCategory = async (updatedCat: Category) => {
+    await Database.updateCategory(updatedCat);
     setCategories(categories.map(cat => cat.id === updatedCat.id ? updatedCat : cat));
   };
 
-  const handleDeleteCategory = (id: string) => {
-    // Prevent deleting default categories if needed, but let's allow it for now
+  const handleDeleteCategory = async (id: string) => {
+    await Database.deleteCategory(id);
     setCategories(categories.filter(cat => cat.id !== id));
+  };
+
+  // Chat message wrapper to sync append-only updates
+  const handleSetChatMessages = (newMessagesOrUpdater: Message[] | ((prev: Message[]) => Message[])) => {
+    // We need to calculate the next state to determine what to save
+    let nextMessages: Message[] = [];
+
+    // Check if it's a function or value
+    if (typeof newMessagesOrUpdater === 'function') {
+      nextMessages = newMessagesOrUpdater(chatMessages);
+    } else {
+      nextMessages = newMessagesOrUpdater;
+    }
+
+    // Detect added messages
+    if (nextMessages.length > chatMessages.length) {
+      const addedMessages = nextMessages.slice(chatMessages.length);
+      addedMessages.forEach(msg => Database.addChatMessage(msg));
+    } else if (nextMessages.length === 0 && chatMessages.length > 0) {
+      // Handle clear history if applicable
+      Database.clearChatHistory();
+    }
+
+    setChatMessages(nextMessages);
   };
 
   const navigationTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
@@ -278,7 +296,9 @@ export default function App() {
           <ChatScreen
             transactions={transactions}
             messages={chatMessages}
-            setMessages={setChatMessages}
+            setMessages={handleSetChatMessages}
+            selectedPersonalityId={selectedPersonalityId}
+            setSelectedPersonalityId={setSelectedPersonalityId}
             language={language}
             theme={theme}
             navigation={navigation}

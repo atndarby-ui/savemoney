@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "598128426891",
+    "project_id": "ketoansieucap-854b4",
+    "storage_bucket": "ketoansieucap-854b4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:598128426891:android:6dd6a0ef455b851e11798e",
+        "android_client_info": {
+          "package_name": "com.savemoney.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "598128426891-9gnntl3a82jjcs4cmmoif4t0fmmi9d7a.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAsN9DQtO8APs8l26A2wUo4wlOhxh-SeLQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "598128426891-9gnntl3a82jjcs4cmmoif4t0fmmi9d7a.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

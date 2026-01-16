@@ -9,11 +9,16 @@ import {
     TextInput,
     Image,
     Switch,
+    Alert,
+    ActivityIndicator
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, Category } from '../types';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { auth } from '../config/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, deleteUser, User } from 'firebase/auth';
+import { SyncService } from '../services/SyncService';
 
 interface ProfileScreenProps {
     transactions: Transaction[];
@@ -47,6 +52,8 @@ const translations = {
         light: 'Sáng',
         dark: 'Tối',
         logout: 'Đăng xuất',
+        login: 'Đăng nhập',
+        register: 'Đăng ký',
         categoriesTitle: 'Danh mục',
         profileTitle: 'Hồ sơ',
         addCategory: 'Thêm danh mục',
@@ -58,6 +65,19 @@ const translations = {
         catColor: 'Màu sắc',
         incomeTab: 'Thu nhập',
         expenseTab: 'Chi tiêu',
+        syncTitle: 'ĐỒNG BỘ DỮ LIỆU',
+        backup: 'Sao lưu lên đám mây',
+        restore: 'Khôi phục từ đám mây',
+        deleteAccount: 'Xóa tài khoản',
+        deleteAccountConfirm: 'Bạn có chắc chắn muốn xóa tài khoản không? Hành động này không thể hoàn tác.',
+        guest: 'Khách',
+        loginToSync: 'Đăng nhập để đồng bộ dữ liệu',
+        password: 'Mật khẩu',
+        noAccount: 'Chưa có tài khoản?',
+        hasAccount: 'Đã có tài khoản?',
+        authSuccess: 'Thành công',
+        authError: 'Lỗi xác thực',
+        deleteBackup: 'Xóa bản sao lưu trên mây',
     },
     'English': {
         account: 'ACCOUNT',
@@ -78,6 +98,8 @@ const translations = {
         light: 'Light',
         dark: 'Dark',
         logout: 'Log out',
+        login: 'Log in',
+        register: 'Sign up',
         categoriesTitle: 'Categories',
         profileTitle: 'Profile',
         addCategory: 'Add Category',
@@ -89,6 +111,19 @@ const translations = {
         catColor: 'Color',
         incomeTab: 'Income',
         expenseTab: 'Expense',
+        syncTitle: 'DATA SYNC',
+        backup: 'Backup to Cloud',
+        restore: 'Restore from Cloud',
+        deleteAccount: 'Delete Account',
+        deleteAccountConfirm: 'Are you sure you want to delete your account? This cannot be undone.',
+        guest: 'Guest',
+        loginToSync: 'Log in to sync data',
+        password: 'Password',
+        noAccount: "Don't have an account?",
+        hasAccount: 'Already have an account?',
+        authSuccess: 'Success',
+        authError: 'Auth Error',
+        deleteBackup: 'Delete Cloud Backup',
     },
 };
 
@@ -105,6 +140,7 @@ export default function ProfileScreen({
 }: ProfileScreenProps) {
     const t = translations[language];
     const isDark = theme === 'dark';
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
 
     const [activeTab, setActiveTab] = useState<'profile' | 'categories'>('profile');
     const [userName, setUserName] = useState('Nguyễn Văn A');
@@ -113,6 +149,13 @@ export default function ProfileScreen({
     const [isEditingInfo, setIsEditingInfo] = useState(false);
     const [editName, setEditName] = useState(userName);
     const [editEmail, setEditEmail] = useState(userEmail);
+
+    // Auth Modal State
+    const [isAuthModalVisible, setIsAuthModalVisible] = useState(false);
+    const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+    const [authEmail, setAuthEmail] = useState('');
+    const [authPassword, setAuthPassword] = useState('');
+    const [authLoading, setAuthLoading] = useState(false);
 
     // Category states
     const [isEditingCategory, setIsEditingCategory] = useState(false);
@@ -126,6 +169,17 @@ export default function ProfileScreen({
 
     useEffect(() => {
         loadUserInfo();
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setCurrentUser(user);
+            if (user) {
+                setUserEmail(user.email || '');
+                setEditEmail(user.email || '');
+            } else {
+                // Keep local override if exists or reset?
+                // For now, let's keep local state but maybe indicate guest
+            }
+        });
+        return unsubscribe;
     }, []);
 
     const loadUserInfo = async () => {
@@ -201,6 +255,75 @@ export default function ProfileScreen({
         }
     };
 
+    // Auth Handlers
+    const handleAuthAction = async () => {
+        if (!authEmail || !authPassword) {
+            Alert.alert(t.authError, 'Please fill in all fields');
+            return;
+        }
+        setAuthLoading(true);
+        try {
+            if (authMode === 'login') {
+                await signInWithEmailAndPassword(auth, authEmail, authPassword);
+            } else {
+                await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+            }
+            setIsAuthModalVisible(false);
+            setAuthEmail('');
+            setAuthPassword('');
+        } catch (error: any) {
+            Alert.alert(t.authError, error.message);
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
+    const handleLogout = async () => {
+        try {
+            await signOut(auth);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleDeleteAccount = () => {
+        Alert.alert(
+            t.deleteAccount,
+            t.deleteAccountConfirm,
+            [
+                { text: t.cancel, style: 'cancel' },
+                {
+                    text: t.deleteAccount,
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            if (auth.currentUser) {
+                                await deleteUser(auth.currentUser);
+                                Alert.alert(t.authSuccess, 'Account deleted');
+                            }
+                        } catch (error: any) {
+                            Alert.alert('Error', error.message);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    // Sync Handlers
+    const handleBackup = async () => {
+        await SyncService.uploadBackup();
+    };
+
+    const handleRestore = async () => {
+        await SyncService.downloadBackup();
+    };
+
+    const handleDeleteBackup = async () => {
+        await SyncService.deleteBackup();
+    };
+
+    // Category Handlers
     const handleCategoryAction = (cat?: Category) => {
         if (cat) {
             setSelectedCategory(cat);
@@ -292,8 +415,24 @@ export default function ProfileScreen({
                                 </TouchableOpacity>
                             </View>
 
-                            <Text style={[styles.name, isDark && styles.textDark]}>{userName}</Text>
-                            <Text style={styles.email}>{userEmail}</Text>
+                            <Text style={[styles.name, isDark && styles.textDark]}>
+                                {currentUser ? currentUser.email : (userName || t.guest)}
+                            </Text>
+                            <Text style={styles.email}>
+                                {currentUser ? (currentUser.email || userEmail) : t.loginToSync}
+                            </Text>
+
+                            {!currentUser && (
+                                <TouchableOpacity
+                                    style={[styles.smallButton, { backgroundColor: '#10b981', marginTop: 8 }]}
+                                    onPress={() => {
+                                        setAuthMode('login');
+                                        setIsAuthModalVisible(true);
+                                    }}
+                                >
+                                    <Text style={styles.smallButtonText}>{t.login}</Text>
+                                </TouchableOpacity>
+                            )}
 
                             <View style={styles.statsRow}>
                                 <View style={[styles.statBox, isDark && styles.statBoxDark]}>
@@ -308,6 +447,35 @@ export default function ProfileScreen({
                                         {formatLargeNum(totalSavings)}
                                     </Text>
                                 </View>
+                            </View>
+                        </View>
+
+                        {/* Sync Section */}
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>{t.syncTitle}</Text>
+                            <View style={[styles.menuCard, isDark && styles.menuCardDark]}>
+                                <MenuItem
+                                    icon="cloud-upload"
+                                    iconBgColor="#3B82F6"
+                                    label={t.backup}
+                                    onPress={handleBackup}
+                                    isDark={isDark}
+                                />
+                                <MenuItem
+                                    icon="cloud-download"
+                                    iconBgColor="#10b981"
+                                    label={t.restore}
+                                    onPress={handleRestore}
+                                    isDark={isDark}
+                                />
+                                <MenuItem
+                                    icon="trash"
+                                    iconBgColor="#EF4444"
+                                    label={t.deleteBackup}
+                                    onPress={handleDeleteBackup}
+                                    isDark={isDark}
+                                    last
+                                />
                             </View>
                         </View>
 
@@ -335,8 +503,18 @@ export default function ProfileScreen({
                                     label={t.security}
                                     onPress={() => { }}
                                     isDark={isDark}
-                                    last
+                                    last={!currentUser} // If logged in, we have delete item after
                                 />
+                                {currentUser && (
+                                    <MenuItem
+                                        icon="trash"
+                                        iconBgColor="#EF4444"
+                                        label={t.deleteAccount}
+                                        onPress={handleDeleteAccount}
+                                        isDark={isDark}
+                                        last
+                                    />
+                                )}
                             </View>
                         </View>
 
@@ -374,9 +552,14 @@ export default function ProfileScreen({
                         </View>
 
                         {/* Logout Button */}
-                        <TouchableOpacity style={[styles.logoutButton, isDark && styles.logoutButtonDark]}>
-                            <Text style={styles.logoutText}>{t.logout}</Text>
-                        </TouchableOpacity>
+                        {currentUser && (
+                            <TouchableOpacity
+                                style={[styles.logoutButton, isDark && styles.logoutButtonDark]}
+                                onPress={handleLogout}
+                            >
+                                <Text style={styles.logoutText}>{t.logout}</Text>
+                            </TouchableOpacity>
+                        )}
                     </>
                 ) : (
                     <View style={styles.categoriesContainer}>
@@ -428,6 +611,61 @@ export default function ProfileScreen({
                     </View>
                 )}
             </ScrollView>
+
+            {/* Auth Modal */}
+            <Modal
+                visible={isAuthModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setIsAuthModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+                        <Text style={[styles.modalTitle, isDark && styles.textDark]}>
+                            {authMode === 'login' ? t.login : t.register}
+                        </Text>
+
+                        <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.email}</Text>
+                        <TextInput
+                            style={[styles.input, isDark && styles.inputDark]}
+                            value={authEmail}
+                            onChangeText={setAuthEmail}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            placeholder="example@email.com"
+                            placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                        />
+
+                        <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.password}</Text>
+                        <TextInput
+                            style={[styles.input, isDark && styles.inputDark]}
+                            value={authPassword}
+                            onChangeText={setAuthPassword}
+                            secureTextEntry
+                            placeholder="********"
+                            placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                        />
+
+                        <TouchableOpacity onPress={handleAuthAction} style={[styles.modalButton, styles.saveButton, { marginBottom: 12, backgroundColor: '#10b981', flex: 0, width: '100%' }]}>
+                            {authLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveButtonText}>{authMode === 'login' ? t.login : t.register}</Text>}
+                        </TouchableOpacity>
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
+                            <Text style={{ color: isDark ? '#FFF' : '#000' }}>{authMode === 'login' ? t.noAccount : t.hasAccount} </Text>
+                            <TouchableOpacity onPress={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}>
+                                <Text style={{ color: '#10b981', fontWeight: 'bold' }}>{authMode === 'login' ? t.register : t.login}</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.modalButton, styles.cancelButton, { marginTop: 20 }]}
+                            onPress={() => setIsAuthModalVisible(false)}
+                        >
+                            <Text style={styles.cancelButtonText}>{t.cancel}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
 
             {/* Category Edit Modal */}
             <Modal
@@ -489,7 +727,7 @@ export default function ProfileScreen({
                 </View>
             </Modal>
 
-            {/* Edit Modal */}
+            {/* Edit Profile Modal */}
             <Modal
                 visible={isEditingInfo}
                 transparent
@@ -663,6 +901,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: 16,
         width: '100%',
+        marginTop: 16,
     },
     statBox: {
         flex: 1,
@@ -940,5 +1179,15 @@ const styles = StyleSheet.create({
     },
     textDark70: {
         color: 'rgba(255, 255, 255, 0.7)',
+    },
+    smallButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 16,
+    },
+    smallButtonText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: 'bold',
     },
 });

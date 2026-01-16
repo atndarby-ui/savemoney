@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -10,7 +10,10 @@ import {
     Platform,
     ActivityIndicator,
     Keyboard,
+    Modal,
+    Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Animated, {
     useSharedValue,
@@ -26,6 +29,8 @@ interface ChatScreenProps {
     transactions: Transaction[];
     messages: Message[];
     setMessages: (messages: Message[]) => void;
+    selectedPersonalityId: string;
+    setSelectedPersonalityId: (id: string) => void;
     language: 'Tiếng Việt' | 'English';
     theme: 'light' | 'dark';
     navigation: any;
@@ -74,22 +79,57 @@ const TypingIndicator = ({ isDark }: { isDark: boolean }) => {
     );
 };
 
+const TypewriterText = ({ text, isDark, onComplete, scrollRef }: { text: string; isDark: boolean; onComplete?: () => void; scrollRef?: React.RefObject<ScrollView> }) => {
+    const [displayedText, setDisplayedText] = useState('');
+
+    // Simple interval-based typewriter
+    useEffect(() => {
+        let i = 0;
+        setDisplayedText('');
+
+        const timer = setInterval(() => {
+            if (i < text.length) {
+                setDisplayedText(text.substring(0, i + 1));
+                i++;
+                if (i % 10 === 0 && scrollRef?.current) {
+                    scrollRef.current.scrollToEnd({ animated: true });
+                }
+            } else {
+                clearInterval(timer);
+                scrollRef?.current?.scrollToEnd({ animated: true });
+                onComplete?.();
+            }
+        }, 15); // Faster typing speed
+
+        return () => clearInterval(timer);
+    }, [text]);
+
+    return (
+        <View>
+            <Text style={[styles.messageText, isDark && styles.messageTextDark]}>
+                {displayedText}
+            </Text>
+        </View>
+    );
+};
 const translations = {
     'Tiếng Việt': {
         askAI: 'Giải cứu cái ví',
         placeholder: 'Hỏi han gì tôi đi, đừng ngại...',
-        aiName: 'Kế toán siêu cấp',
-        aiIntro:
-            'Chào bạn thân mến! Tôi là Kế toán siêu cấp. Tôi ở đây để giúp bạn quản lý xu dính túi để không phải ăn mì tôm qua ngày. Bạn cần "khám túi" hay muốn tôi "phán" gì về thói quen vung tay quá trán của mình không? 😎',
         thinking: 'Đợi xíu, đang dùng não to để tính...',
+        clearHistory: 'Xóa lịch sử',
+        confirmClear: 'Xác nhận xóa toàn bộ lịch sử trò chuyện?',
+        cancel: 'Hủy',
+        delete: 'Xóa',
     },
     'English': {
         askAI: 'Wallet Rescue',
         placeholder: 'Ask me anything, don\'t be shy...',
-        aiName: 'Super Accountant',
-        aiIntro:
-            "Hey there! I'm your Super VIP Accounting Professor. I'm here to help you manage your coins so you don't end up living on cup noodles. Need a 'wallet checkup' or want me to 'judge' your spending habits? 😎",
         thinking: 'Wait a sec, brain is processing...',
+        clearHistory: 'Clear History',
+        confirmClear: 'Are you sure you want to clear all chat history?',
+        cancel: 'Cancel',
+        delete: 'Delete',
     },
 };
 
@@ -144,10 +184,72 @@ const formatAIResponse = (text: string, isDark: boolean) => {
     });
 };
 
+const personalities = [
+    {
+        id: 'super_accountant',
+        icon: '🤪',
+        name: { 'Tiếng Việt': 'Kế toán siêu cấp', English: 'Super Accountant' },
+        intro: {
+            'Tiếng Việt': 'Chào bạn thân mến! Tôi là Kế toán siêu cấp. Tôi ở đây để giúp bạn quản lý xu dính túi để không phải ăn mì tôm qua ngày. Bạn cần "khám túi" hay muốn tôi "phán" gì về thói quen vung tay quá trán của mình không? 😎',
+            English: "Hey there! I'm your Super VIP Accounting Professor. I'm here to help you manage your coins so you don't end up living on cup noodles. Need a 'wallet checkup' or want me to 'judge' your spending habits? 😎"
+        },
+        systemPrompt: (language: string) => `
+You are a Super Accountant (Kế toán siêu cấp) with a VERY HUMOROUS, WITTY, and FRIENDLY personality.
+Your goal is to provide deep financial insights but make the user laugh or smile. Use emojis moderately.
+Be a bit "sassy" if the user spends too much on things they don't need, but always stay helpful.
+Respond ONLY in ${language}.`
+    },
+    {
+        id: 'serious_advisor',
+        icon: '👨‍💼',
+        name: { 'Tiếng Việt': 'Cố vấn tài chính', English: 'Financial Advisor' },
+        intro: {
+            'Tiếng Việt': 'Chào bạn. Tôi là Cố vấn tài chính của bạn. Tôi sẽ cung cấp các phân tích dữ liệu chính xác và lời khuyên chiến lược để giúp bạn đạt được các mục tiêu tài chính dài hạn. Chúng ta bắt đầu phân tích chứ?',
+            English: "Hello. I am your Financial Advisor. I provide precise data analysis and strategic advice to help you reach your long-term financial goals. Shall we begin the analysis?"
+        },
+        systemPrompt: (language: string) => `
+You are a Serious Financial Advisor (Cố vấn tài chính). 
+You are professional, logical, and focused on data-driven insights and long-term financial planning.
+Provide structured, clear, and formal advice. Use bold text for important figures.
+Respond ONLY in ${language}.`
+    },
+    {
+        id: 'shopping_buddy',
+        icon: '💅',
+        name: { 'Tiếng Việt': 'Bạn thân shopping', English: 'Shopping Buddy' },
+        intro: {
+            'Tiếng Việt': 'Hế lô bấy bê! Tui là bạn thân shopping của bà/ông nè. Tui sẽ canh chừng cái ví cho bà, khi nào thấy bà vung tay quá trán là tui la lên liền nha. Sẵn sàng xem hôm nay mình đã "đốt" bao nhiêu tiền chưa?',
+            English: "Hey bestie! I'm your Shopping Buddy. I'll keep an eye on your wallet for you, and I'll scream if I see you overspending. Ready to see how much money we 'burned' today?"
+        },
+        systemPrompt: (language: string) => `
+You are a Shopping Buddy (Bạn thân shopping). 
+You are very casual, friendly, and use slang. You are supportive but honest about bad spending habits.
+Talk to the user like a close friend. Use plenty of emojis.
+Respond ONLY in ${language}.`
+    },
+    {
+        id: 'financial_philosopher',
+        icon: '🧘',
+        name: { 'Tiếng Việt': 'Triết gia tài chính', English: 'Money Philosopher' },
+        intro: {
+            'Tiếng Việt': 'Chào người tìm kiếm sự thông thái. Tôi là Triết gia tài chính. Hãy cùng xem xét cách bạn sử dụng tiền bạc để phản ánh những giá trị sống đích thực của mình. Bạn muốn suy ngẫm về điều gì hôm nay?',
+            English: "Welcome, seeker of wisdom. I am the Money Philosopher. Let us examine how your usage of money reflects your true life values. What would you like to reflect on today?"
+        },
+        systemPrompt: (language: string) => `
+You are a Financial Philosopher (Triết gia tài chính). 
+You provide deep, thoughtful, and philosophical insights about money and life.
+Focus on the relationship between spending, happiness, and values.
+Use calm, poetic, and insightful language.
+Respond ONLY in ${language}.`
+    }
+];
+
 export default function ChatScreen({
     transactions,
     messages,
     setMessages,
+    selectedPersonalityId,
+    setSelectedPersonalityId,
     language,
     theme,
     navigation,
@@ -158,7 +260,12 @@ export default function ChatScreen({
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+    const [showPersonalityModal, setShowPersonalityModal] = useState(false);
     const scrollRef = useRef<ScrollView>(null);
+    const hasInitialized = useRef(false);
+    const lastMessageCount = useRef(0);
+
+    const activePersonality = personalities.find(p => p.id === selectedPersonalityId) || personalities[0];
 
     useEffect(() => {
         const showSub = Keyboard.addListener(
@@ -177,10 +284,25 @@ export default function ChatScreen({
     }, []);
 
     useEffect(() => {
-        if (messages.length === 0) {
-            setMessages([{ role: 'model', text: t.aiIntro }]);
+        if (messages.length === 0 && !hasInitialized.current) {
+            setMessages([{ role: 'model', text: activePersonality.intro[language] }]);
+            hasInitialized.current = true;
+        } else if (messages.length === 0 && hasInitialized.current) {
+            // User cleared history
+            setMessages([{ role: 'model', text: activePersonality.intro[language] }]);
         }
-    }, []);
+        // Track message count changes
+        lastMessageCount.current = messages.length;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [messages.length]);
+
+    // Handle personality change - only if no user messages yet, update intro
+    useEffect(() => {
+        if (messages.length === 1 && messages[0].role === 'model' && hasInitialized.current) {
+            setMessages([{ role: 'model', text: activePersonality.intro[language] }]);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedPersonalityId, language]);
 
     // Handle initial prompt from other screens
     useEffect(() => {
@@ -194,25 +316,20 @@ export default function ChatScreen({
 
     useEffect(() => {
         scrollRef.current?.scrollToEnd({ animated: true });
-    }, [messages, isLoading]);
+    }, [messages]);
 
     const systemPrompt = `
-You are a Super Accountant (Kế toán siêu cấp) with a VERY HUMOROUS, WITTY, and FRIENDLY personality for the Kế toán siêu cấp application.
-Your goal is to provide deep financial insights but make the user laugh or smile. Use emojis moderately.
-Be a bit "sassy" if the user spends too much on things they don't need, but always stay helpful.
-
-CRITICAL: Respond ONLY in ${language}.
+${activePersonality.systemPrompt(language)}
 
 Recent user transaction data:
 ${JSON.stringify(transactions.slice(0, 50))}
 
 Your instructions:
-1. Analyze spending patterns with humor.
-2. If they spent too much, roast them gently (e.g., "Mì tôm đang chờ bạn đó!").
-3. Give solid financial advice wrapped in a joke.
-4. Maintain an encouraging and fun tone.
-5. Use bullet points and **bold text** for key numbers.
-6. Keep responses under 200 words.
+1. Analyze spending patterns based on your personality.
+2. Maintain your specific tone throughout the conversation.
+3. Give solid financial advice wrapped in your personality style.
+4. Use bullet points and **bold text** for key numbers.
+5. Keep responses under 200 words.
   `;
 
     const handleSend = async (directText?: string) => {
@@ -246,19 +363,28 @@ Your instructions:
             setMessages([...newMessages, { role: 'model', text: responseText }]);
         } catch (error) {
             console.error(error);
-            setMessages([
-                ...newMessages,
-                {
-                    role: 'model',
-                    text:
-                        language === 'English'
-                            ? "Oops, my financial brain just short-circuited! Try again?"
-                            : 'Ối giời ơi, não tài chính của tôi vừa bị chập mạch rồi! Thử lại nha?',
-                },
-            ]);
+            const errorMsg = language === 'English'
+                ? "Oops, my financial brain just short-circuited! Try again?"
+                : 'Ối giời ơi, não tài chính của tôi vừa bị chập mạch rồi! Thử lại nha?';
+            setMessages([...newMessages, { role: 'model', text: errorMsg }]);
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleClearHistory = () => {
+        Alert.alert(
+            t.clearHistory,
+            t.confirmClear,
+            [
+                { text: t.cancel, style: 'cancel' },
+                {
+                    text: t.delete,
+                    style: 'destructive',
+                    onPress: () => setMessages([])
+                }
+            ]
+        );
     };
 
     return (
@@ -268,20 +394,69 @@ Your instructions:
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
             <View style={[styles.inner, isDark && styles.innerDark]}>
-                {/* Header */}
-                <View style={[styles.header, isDark && styles.headerDark]}>
-                    <View style={styles.headerIcon}>
-                        <Text style={styles.headerIconText}>🤪</Text>
-                    </View>
-                    <View>
-                        <Text style={[styles.headerTitle, isDark && styles.textDark]}>
-                            {t.askAI}
+                {/* Header Row */}
+                <View style={[styles.headerRow, isDark && styles.headerRowDark]}>
+                    <TouchableOpacity
+                        style={[styles.dropdownTrigger, isDark && styles.dropdownTriggerDark]}
+                        onPress={() => setShowPersonalityModal(true)}
+                    >
+                        <Text style={styles.personalityIcon}>{activePersonality.icon}</Text>
+                        <Text style={[styles.activePersonalityName, isDark && styles.textDark]}>
+                            {activePersonality.name[language]}
                         </Text>
-                        <Text style={[styles.headerSubtitle, isDark && styles.textLight]}>
-                            {t.aiName}
-                        </Text>
-                    </View>
+                        <Ionicons name="chevron-down" size={16} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.clearButton}
+                        onPress={handleClearHistory}
+                    >
+                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                    </TouchableOpacity>
                 </View>
+
+                {/* Personality Modal */}
+                <Modal
+                    visible={showPersonalityModal}
+                    transparent
+                    animationType="fade"
+                    onRequestClose={() => setShowPersonalityModal(false)}
+                >
+                    <TouchableOpacity
+                        style={styles.modalOverlay}
+                        activeOpacity={1}
+                        onPress={() => setShowPersonalityModal(false)}
+                    >
+                        <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+                            {personalities.map((p) => (
+                                <TouchableOpacity
+                                    key={p.id}
+                                    style={[
+                                        styles.modalItem,
+                                        selectedPersonalityId === p.id && styles.modalItemActive,
+                                        isDark && styles.modalItemDark
+                                    ]}
+                                    onPress={() => {
+                                        setSelectedPersonalityId(p.id);
+                                        setShowPersonalityModal(false);
+                                    }}
+                                >
+                                    <Text style={styles.modalIcon}>{p.icon}</Text>
+                                    <Text style={[
+                                        styles.modalText,
+                                        selectedPersonalityId === p.id && styles.modalTextActive,
+                                        isDark && styles.textDark
+                                    ]}>
+                                        {p.name[language]}
+                                    </Text>
+                                    {selectedPersonalityId === p.id && (
+                                        <Ionicons name="checkmark" size={20} color="#10b981" />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
 
                 {/* Messages */}
                 <ScrollView
@@ -289,32 +464,51 @@ Your instructions:
                     style={styles.messagesContainer}
                     contentContainerStyle={styles.messagesContent}
                 >
-                    {messages.map((msg, idx) => (
-                        <View
-                            key={idx}
-                            style={[
-                                styles.messageBubble,
-                                msg.role === 'user'
-                                    ? styles.userBubble
-                                    : styles.modelBubble,
-                                msg.role === 'user' && isDark && styles.userBubbleDark,
-                                msg.role === 'model' && isDark && styles.modelBubbleDark,
-                            ]}
-                        >
-                            {msg.role === 'model' ? (
-                                <View>{formatAIResponse(msg.text, isDark)}</View>
-                            ) : (
-                                <Text
-                                    style={[
-                                        styles.userMessageText,
-                                        isDark && styles.userMessageTextDark,
-                                    ]}
-                                >
-                                    {msg.text}
-                                </Text>
-                            )}
-                        </View>
-                    ))}
+                    {messages.map((msg, idx) => {
+                        // Check if this is the last message and it's new
+                        const isLastMessage = idx === messages.length - 1;
+                        const isNewMessage = messages.length > lastMessageCount.current;
+                        const shouldTypewrite = msg.role === 'model' && isLastMessage && isNewMessage;
+
+                        if (msg.role === 'model') {
+                        }
+                        return (
+                            <View
+                                key={idx}
+                                style={[
+                                    styles.messageBubble,
+                                    msg.role === 'user'
+                                        ? styles.userBubble
+                                        : styles.modelBubble,
+                                    msg.role === 'user' && isDark && styles.userBubbleDark,
+                                    msg.role === 'model' && isDark && styles.modelBubbleDark,
+                                ]}
+                            >
+                                {msg.role === 'model' ? (
+                                    shouldTypewrite ? (
+                                        <TypewriterText
+                                            key={`typewriter-${idx}`}
+                                            text={msg.text}
+                                            isDark={isDark}
+                                            onComplete={() => { lastMessageCount.current = messages.length; }}
+                                            scrollRef={scrollRef}
+                                        />
+                                    ) : (
+                                        <View>{formatAIResponse(msg.text, isDark)}</View>
+                                    )
+                                ) : (
+                                    <Text
+                                        style={[
+                                            styles.userMessageText,
+                                            isDark && styles.userMessageTextDark,
+                                        ]}
+                                    >
+                                        {msg.text}
+                                    </Text>
+                                )}
+                            </View>
+                        )
+                    })}
                     {isLoading && (
                         <View
                             style={[
@@ -377,38 +571,93 @@ const styles = StyleSheet.create({
     innerDark: {
         backgroundColor: '#111827',
     },
-    header: {
+    headerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
-        padding: 20,
-        paddingTop: 60,
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: Platform.OS === 'ios' ? 60 : 40,
+        paddingBottom: 16,
+        backgroundColor: '#111827',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    headerRowDark: {
         backgroundColor: '#111827',
     },
-    headerDark: {
-        backgroundColor: '#111827',
-    },
-    headerIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+    dropdownTrigger: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        gap: 8,
+    },
+    dropdownTriggerDark: {
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    activePersonalityName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#FFFFFF',
+    },
+    clearButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    headerIconText: {
-        fontSize: 24,
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
     },
-    headerTitle: {
+    modalContent: {
+        width: '100%',
+        maxWidth: 300,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 12,
+        gap: 4,
+    },
+    modalContentDark: {
+        backgroundColor: '#1F2937',
+    },
+    modalItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 12,
+        gap: 12,
+    },
+    modalItemActive: {
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    },
+    modalItemDark: {
+        // Style for dark mode items if needed
+    },
+    modalIcon: {
         fontSize: 20,
+    },
+    modalText: {
+        flex: 1,
+        fontSize: 15,
+        color: '#374151',
+        fontWeight: '500',
+    },
+    modalTextActive: {
+        color: '#10b981',
         fontWeight: 'bold',
-        color: '#FFFFFF',
     },
-    headerSubtitle: {
-        fontSize: 12,
-        color: '#9CA3AF',
-        marginTop: 2,
+    personalityIcon: {
+        fontSize: 18,
     },
+    // Keep internal parts of old styles that might still be useful or cleanup
     messagesContainer: {
         flex: 1,
     },

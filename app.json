@@ -14,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mrnhan89.money"
+      "bundleIdentifier": "com.mrnhan89.money",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,11 +24,18 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.mrnhan89.money"
+      "package": "com.savemoney.app",
+      "googleServicesFile": "./google-services.json"
     },
     "plugins": [
       "@react-native-community/datetimepicker",
-      "expo-font"
-    ]
+      "expo-font",
+      "expo-sqlite"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "bfc505cd-0055-4996-93e9-5cfeae58c4b3"
+      }
+    }
   }
 }

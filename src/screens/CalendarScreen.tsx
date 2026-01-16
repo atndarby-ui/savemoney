@@ -281,7 +281,7 @@ export default function CalendarScreen({
                                 {selectedDate.getDate()}/{selectedDate.getMonth() + 1}
                             </Text>
                         </View>
-                        <Text style={[styles.detailsLabel, isDark && styles.textLight]}>
+                        <Text style={[styles.detailsLabel, isDark && styles.textDark]}>
                             {t.details}
                         </Text>
                     </View>
