@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Đua Ngựa Siêu Tốc - Racing Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&family=Bangers&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --turf-green: #15803d;
+            --turf-light: #16a34a;
+            --track-brown: #78350f;
+            --accent-yellow: #fde047;
+            --glass: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0f172a;
+            color: white;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 20px;
+            text-align: center;
+            background: linear-gradient(to bottom, #1e293b, transparent);
+        }
+
+        h1 {
+            font-family: 'Bangers', cursive;
+            font-size: 2.5rem;
+            margin: 0;
+            letter-spacing: 2px;
+            color: var(--accent-yellow);
+            text-shadow: 0 4px 0 #854d0e, 0 8px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Racing Track */
+        .race-track-container {
+            flex-grow: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .track {
+            position: relative;
+            background: var(--track-brown);
+            height: 60px;
+            margin-bottom: 5px;
+            border-radius: 10px;
+            border-bottom: 3px solid rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            width: 2000px;
+            padding: 0 100px;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .track::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 10px;
+            background: #ef4444;
+            border-radius: 10px 0 0 10px;
+        }
+
+        .finish-line {
+            position: absolute;
+            left: 1950px;
+            top: 0;
+            bottom: 0;
+            width: 20px;
+            background: repeating-linear-gradient(45deg,
+                    #fff,
+                    #fff 10px,
+                    #000 10px,
+                    #000 20px);
+            z-index: 5;
+            box-shadow: -5px 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .horse {
+            position: absolute;
+            left: 10px;
+            font-size: 2.5rem;
+            transition: left 0.1s linear;
+            z-index: 10;
+            filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.5));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transform-origin: center;
+        }
+
+        .horse-number {
+            font-size: 0.7rem;
+            background: white;
+            color: black;
+            font-weight: 900;
+            padding: 1px 5px;
+            border-radius: 5px;
+            margin-top: -5px;
+        }
+
+        .horse.running {
+            animation: gallop 0.4s infinite ease-in-out;
+        }
+
+        @keyframes gallop {
+
+            0%,
+            100% {
+                transform: translateY(0) rotate(0);
+            }
+
+            50% {
+                transform: translateY(-8px) rotate(-5deg);
+            }
+        }
+
+        .lane-number {
+            position: absolute;
+            left: 20px;
+            font-family: 'Bangers';
+            font-size: 1.5rem;
+            opacity: 0.3;
+        }
+
+        /* UI Panels */
+        .controls {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            border-top: 1px solid var(--glass);
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border-radius: 15px;
+            border: none;
+            font-weight: 900;
+            font-size: 1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            box-shadow: 0 5px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-start {
+            background: #22c55e;
+            color: white;
+        }
+
+        .btn-start:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        .setup-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.95);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .setup-card {
+            background: var(--glass);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 30px;
+            border-radius: 30px;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        input,
+        select {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 12px;
+            border-radius: 12px;
+            margin: 10px 0 20px;
+            font-size: 1.1rem;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: var(--accent-yellow);
+        }
+
+        .result-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .result-card {
+            background: white;
+            color: #0f172a;
+            padding: 40px;
+            border-radius: 30px;
+            text-align: center;
+            transform: scale(0.9);
+            animation: popIn 0.5s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            to {
+                transform: scale(1);
+            }
+        }
+
+        .winner-rank {
+            font-size: 3rem;
+            font-family: 'Bangers';
+            margin: 10px 0;
+        }
+
+        /* Horse Colors */
+        .horse-0 {
+            filter: drop-shadow(0 0 5px #ef4444);
+        }
+
+        .horse-1 {
+            filter: drop-shadow(0 0 5px #3b82f6);
+        }
+
+        .horse-2 {
+            filter: drop-shadow(0 0 5px #22c55e);
+        }
+
+        .horse-3 {
+            filter: drop-shadow(0 0 5px #eab308);
+        }
+
+        .horse-4 {
+            filter: drop-shadow(0 0 5px #a855f7);
+        }
+
+        .horse-5 {
+            filter: drop-shadow(0 0 5px #ec4899);
+        }
+
+        .horse-6 {
+            filter: drop-shadow(0 0 5px #06b6d4);
+        }
+
+        .horse-7 {
+            filter: drop-shadow(0 0 5px #f97316);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>TRƯỜNG ĐUA SIÊU CẤP</h1>
+    </div>
+
+    <div class="setup-overlay" id="setupOverlay">
+        <div class="setup-card">
+            <h2 style="margin-top:0">CẤU HÌNH ĐUA</h2>
+            <div style="text-align: left">
+                <label>Số lượng ngựa (2-8):</label>
+                <input type="number" id="horseCount" value="5" min="2" max="8" onchange="updateHorseSelection()">
+
+                <label>Chọn con ngựa của bạn:</label>
+                <select id="myHorseSelection"></select>
+            </div>
+            <button class="btn btn-start" style="width:100%" onclick="initRace()">SẴN SÀNG!</button>
+        </div>
+    </div>
+
+    <div class="race-track-container" id="trackContainer">
+        <div class="finish-line"></div>
+        <!-- Tracks generated by JS -->
+    </div>
+
+    <div class="controls">
+        <button class="btn btn-start" id="startBtn" onclick="startRace()" disabled>KHỞI HÀNH!</button>
+        <button class="btn" style="background:#475569; color:white" onclick="resetGame()">LÀM LẠI</button>
+    </div>
+
+    <div class="result-overlay" id="resultOverlay">
+        <div class="result-card" id="resultCard">
+            <h2 id="resultTitle">KẾT QUẢ</h2>
+            <div class="winner-rank" id="winnerLabel">Hạng 1: Ngựa #3</div>
+            <p id="resultMsg">Rất tiếc, bạn đã thua!</p>
+            <button class="btn btn-start" onclick="resetGame()">CHƠI TIẾP</button>
+        </div>
+    </div>
+
+    <script>
+        const trackContainer = document.getElementById('trackContainer');
+        const horseCountInput = document.getElementById('horseCount');
+        const myHorseSelect = document.getElementById('myHorseSelection');
+
+        let horses = [];
+        let raceActive = false;
+        let finishedCount = 0;
+        let winners = [];
+        let userHorseId = 1;
+
+        const audio = new (window.AudioContext || window.webkitAudioContext)();
+        function playSfx(freq, type, duration, vol) {
+            const osc = audio.createOscillator();
+            const gain = audio.createGain();
+            osc.connect(gain);
+            gain.connect(audio.destination);
+            osc.frequency.setValueAtTime(freq, audio.currentTime);
+            osc.type = type;
+            gain.gain.setValueAtTime(vol, audio.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + duration);
+            osc.start();
+            osc.stop(audio.currentTime + duration);
+        }
+
+        function updateHorseSelection() {
+            const count = Math.min(8, Math.max(2, parseInt(horseCountInput.value) || 5));
+            myHorseSelect.innerHTML = '';
+            for (let i = 1; i <= count; i++) {
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = `Ngựa số ${i}`;
+                myHorseSelect.appendChild(opt);
+            }
+        }
+        updateHorseSelection();
+
+        function initRace() {
+            const count = Math.min(8, Math.max(2, parseInt(horseCountInput.value) || 5));
+            userHorseId = parseInt(myHorseSelect.value);
+
+            trackContainer.innerHTML = '<div class="finish-line"></div>';
+            trackContainer.scrollLeft = 0;
+            horses = [];
+            finishedCount = 0;
+            winners = [];
+
+            for (let i = 1; i <= count; i++) {
+                const lane = document.createElement('div');
+                lane.className = 'track';
+                lane.innerHTML = `<div class="lane-number">${i}</div>`;
+
+                const horse = document.createElement('div');
+                horse.className = `horse horse-${i - 1}`;
+                horse.id = `horse-${i}`;
+                horse.innerHTML = `🐎<span class="horse-number">${i}</span>`;
+                if (i === userHorseId) {
+                    horse.style.filter = horse.style.filter + ' brightness(1.5) drop-shadow(0 0 10px gold)';
+                }
+
+                lane.appendChild(horse);
+                trackContainer.appendChild(lane);
+
+                horses.push({
+                    id: i,
+                    el: horse,
+                    pos: 10,
+                    speed: 0,
+                    finished: false
+                });
+            }
+
+            document.getElementById('setupOverlay').style.display = 'none';
+            document.getElementById('startBtn').disabled = false;
+            playSfx(440, 'sine', 0.2, 0.1);
+        }
+
+        function startRace() {
+            if (raceActive) return;
+            raceActive = true;
+            document.getElementById('startBtn').disabled = true;
+
+            horses.forEach(h => h.el.classList.add('running'));
+
+            // Countdown sound
+            playSfx(600, 'square', 0.1, 0.1);
+
+            requestAnimationFrame(updateRace);
+        }
+
+        function updateRace() {
+            if (!raceActive) return;
+
+            // Track width is now much longer
+            const trackWidth = 2000;
+            let allFinished = true;
+            let leaderPos = 0;
+
+            horses.forEach(h => {
+                if (!h.finished) {
+                    allFinished = false;
+                    // Random speed variation
+                    h.speed = Math.random() * 3 + 2; // Increased base speed for longer track
+                    if (Math.random() > 0.98) h.speed += 8; // Rare big burst
+
+                    h.pos += h.speed;
+                    h.el.style.left = h.pos + 'px';
+
+                    if (h.pos > leaderPos) leaderPos = h.pos;
+
+                    if (h.pos >= trackWidth) {
+                        h.finished = true;
+                        h.el.classList.remove('running');
+                        finishedCount++;
+                        winners.push(h.id);
+                        if (finishedCount === 1) {
+                            playSfx(880, 'sine', 0.3, 0.2);
+                        }
+                    }
+                } else if (h.pos > leaderPos) {
+                    leaderPos = h.pos;
+                }
+            });
+
+            // Camera follow leader
+            const viewportWidth = trackContainer.offsetWidth;
+            if (leaderPos > viewportWidth / 2) {
+                trackContainer.scrollLeft = leaderPos - viewportWidth / 2;
+            }
+
+            if (allFinished) {
+                endRace();
+            } else {
+                requestAnimationFrame(updateRace);
+            }
+        }
+
+        function endRace() {
+            raceActive = false;
+            const winner = winners[0];
+            const resultMsg = (winner === userHorseId) ? "CHÚC MỪNG! BẠN ĐÃ CHIẾN THẮNG! 🎉" : "TIẾC QUÁ! NGỰA CỦA BẠN VỀ HẠNG " + (winners.indexOf(userHorseId) + 1);
+
+            document.getElementById('resultTitle').textContent = (winner === userHorseId) ? "VICTORY!" : "DEFEAT";
+            document.getElementById('resultTitle').style.color = (winner === userHorseId) ? "#22c55e" : "#ef4444";
+            document.getElementById('winnerLabel').textContent = `Hạng 1: Ngựa số ${winner}`;
+            document.getElementById('resultMsg').textContent = resultMsg;
+
+            setTimeout(() => {
+                document.getElementById('resultOverlay').style.display = 'flex';
+                if (winner === userHorseId) {
+                    playSfx(1000, 'sine', 0.5, 0.2);
+                    setTimeout(() => playSfx(1200, 'sine', 0.5, 0.2), 200);
+                } else {
+                    playSfx(200, 'sawtooth', 0.5, 0.1);
+                }
+            }, 1000);
+        }
+
+        function resetGame() {
+            document.getElementById('resultOverlay').style.display = 'none';
+            document.getElementById('setupOverlay').style.display = 'flex';
+            document.getElementById('startBtn').disabled = true;
+            trackContainer.innerHTML = '<div class="finish-line"></div>';
+            trackContainer.scrollLeft = 0;
+            winners = [];
+            finishedCount = 0;
+            raceActive = false;
+        }
+    </script>
+</body>
+
+</html>

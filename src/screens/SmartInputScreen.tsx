@@ -52,7 +52,7 @@ export default function SmartInputScreen({ navigation }: SmartInputScreenProps) 
             }
 
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+            const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
             const categoryIds = CATEGORIES.map(c => c.id).join(', ');
             // Get local date in YYYY-MM-DD format
@@ -65,19 +65,19 @@ export default function SmartInputScreen({ navigation }: SmartInputScreenProps) 
             let promptText = "";
             if (type === 'image') {
                 promptText = `
-                Analyze this receipt/image. Extract ALL transaction details into a JSON ARRAY.
+                Analyze this receipt/image. Extract ONLY the TOTAL amount and summarized information into a SINGLE transaction inside a JSON ARRAY.
                 TODAY'S DATE IS: ${todayISO} (Use this if no date is found on receipt).
                 
                 CRITICAL RULES:
-                1. If there are MULTIPLE items/expenses with DIFFERENT amounts, create SEPARATE transactions for EACH.
-                2. ALWAYS return an ARRAY, even if there's only 1 transaction.
-                3. Each transaction MUST have its own amount, category, and note.
+                1. DO NOT list individual items. Only extract the TOTAL amount shown at the bottom of the receipt.
+                2. ALWAYS return an ARRAY containing exactly ONE transaction object, even if the receipt has many lines.
+                3. The "note" should be a summary (e.g., "Hóa đơn [Tên cửa hàng]" or "Chi tiêu tổng hợp").
+                4. Do not create separate transactions for different items. Combine everything into one total.
                 
-                Example Input: Receipt shows "Cà phê 50k, Bánh mì 20k"
+                Example Input: Receipt from "Coffee House" showing 5 items totaling 250,000.
                 Correct Output:
                 [
-                    {"amount": 50000, "category": "food", "date": "${todayISO}", "note": "Cà phê", "type": "expense"},
-                    {"amount": 20000, "category": "food", "date": "${todayISO}", "note": "Bánh mì", "type": "expense"}
+                    {"amount": 250000, "category": "food", "date": "${todayISO}", "note": "Hóa đơn Coffee House", "type": "expense"}
                 ]
                 
                 JSON Format (ARRAY):
@@ -86,7 +86,7 @@ export default function SmartInputScreen({ navigation }: SmartInputScreenProps) 
                         "amount": number (INTEGER only, e.g. 50000),
                         "category": string (must be one of: ${categoryIds}),
                         "date": string (ISO 8601 YYYY-MM-DD),
-                        "note": string (Short description in Vietnamese),
+                        "note": string (Summarized description in Vietnamese),
                         "type": "expense" | "income"
                     }
                 ]
@@ -197,6 +197,22 @@ export default function SmartInputScreen({ navigation }: SmartInputScreenProps) 
                 const catInfo = CATEGORIES.find(c => c.id === data.category);
                 if (catInfo) {
                     data.type = catInfo.type;
+                }
+
+                // Ensure date is a valid ISO string with current time if only date provided
+                if (data.date && typeof data.date === 'string' && data.date.length === 10) {
+                    const now = new Date();
+                    const hours = String(now.getHours()).padStart(2, '0');
+                    const minutes = String(now.getMinutes()).padStart(2, '0');
+                    const seconds = String(now.getSeconds()).padStart(2, '0');
+                    // Convert YYYY-MM-DD to YYYY-MM-DDTHH:mm:ss.sssZ (local time approximation)
+                    // Actually, simpler to just use Date object and then back to string
+                    const [y, m, d] = data.date.split('-').map(Number);
+                    const txDate = new Date();
+                    txDate.setFullYear(y, m - 1, d);
+                    // Keep current time
+                    txDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+                    data.date = txDate.toISOString();
                 }
 
                 return data;

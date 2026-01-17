@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.analyzeFinancialHealth = exports.analyzeWeeklySpending = exports.helloWorld = void 0;
+exports.registerMiniApp = exports.analyzeFinancialHealth = exports.analyzeWeeklySpending = exports.helloWorld = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const generative_ai_1 = require("@google/generative-ai");
@@ -38,7 +38,7 @@ exports.analyzeFinancialHealth = functions.https.onCall(async (data, context) =>
             throw new functions.https.HttpsError('internal', 'API Key not configured.');
         }
         const genAI = new generative_ai_1.GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
         const prompt = `
             Analyze the following financial transactions for a user (Currency: ${currency}):
             ${JSON.stringify(transactions.slice(0, 50))} 
@@ -61,6 +61,43 @@ exports.analyzeFinancialHealth = functions.https.onCall(async (data, context) =>
     catch (error) {
         console.error("Analysis error:", error);
         throw new functions.https.HttpsError('internal', 'Failed to analyze data.');
+    }
+});
+// 4. Register Mini App (Callable for deploying new tools)
+exports.registerMiniApp = functions.https.onCall(async (data, context) => {
+    // Optional: Check if user is admin or authenticated
+    // if (!context.auth) ...
+    var _a;
+    const { title, icon, description, url, htmlContent } = data;
+    if (!title) {
+        throw new functions.https.HttpsError('invalid-argument', 'Title is required');
+    }
+    if (!url && !htmlContent) {
+        throw new functions.https.HttpsError('invalid-argument', 'Either URL or HTML Content is required');
+    }
+    try {
+        const slug = title.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        const appRef = admin.firestore().collection('mini_apps').doc(slug);
+        const appData = {
+            title,
+            icon: icon || '🎮',
+            description: description || '',
+            url: url || null,
+            htmlContent: htmlContent || null,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+        // Use set with merge to update if exists or create if not
+        await appRef.set(appData, { merge: true });
+        // If it's a new document, add createdAt
+        const doc = await appRef.get();
+        if (!((_a = doc.data()) === null || _a === void 0 ? void 0 : _a.createdAt)) {
+            await appRef.update({ createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        }
+        return { success: true, id: slug };
+    }
+    catch (error) {
+        console.error("Error registering mini app:", error);
+        throw new functions.https.HttpsError('internal', 'Failed to register mini app');
     }
 });
 //# sourceMappingURL=index.js.map

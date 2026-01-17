@@ -19,6 +19,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { auth } from '../config/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, deleteUser, User } from 'firebase/auth';
 import { SyncService } from '../services/SyncService';
+import { NotificationService } from '../services/NotificationService';
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { WebView } from 'react-native-webview';
 
 interface ProfileScreenProps {
     transactions: Transaction[];
@@ -30,6 +34,31 @@ interface ProfileScreenProps {
     onAddCategory: (cat: Category) => void;
     onUpdateCategory: (cat: Category) => void;
     onDeleteCategory: (id: string) => void;
+    onRestore: () => void;
+}
+
+interface Goal {
+    id: string;
+    type: 'future' | 'debt' | 'plan' | 'subscription'; // Added subscription
+    title: string;
+    targetAmount: number;
+    currentAmount: number;
+    deadline?: string;
+    description?: string;
+    completed: boolean;
+    reminderEnabled?: boolean;
+    reminderOffset?: number;
+    notificationId?: string;
+}
+
+interface Tool {
+    id: string;
+    title: string;
+    description: string;
+    icon: string;
+    url?: string;
+    htmlContent?: string;
+    type?: 'webview' | 'native';
 }
 
 const translations = {
@@ -56,6 +85,8 @@ const translations = {
         register: 'Đăng ký',
         categoriesTitle: 'Danh mục',
         profileTitle: 'Hồ sơ',
+        goalsTitle: 'Nhắc nhở', // Renamed
+        toolsTitle: 'Kho ứng dụng', // Changed from 'Công cụ' to match dynamic store feel
         addCategory: 'Thêm danh mục',
         editCategory: 'Sửa danh mục',
         deleteCategory: 'Xóa danh mục',
@@ -78,6 +109,52 @@ const translations = {
         authSuccess: 'Thành công',
         authError: 'Lỗi xác thực',
         deleteBackup: 'Xóa bản sao lưu trên mây',
+        // Reminders Strings
+        addGoal: 'Thêm nhắc nhở', // Renamed
+        editGoal: 'Sửa nhắc nhở', // Renamed
+        goalType: 'Loại nhắc nhở', // Renamed
+        goalTitle: 'Tên nhắc nhở', // Renamed
+        goalAmount: 'Số tiền',
+        goalCurrent: 'Hiện có',
+        goalDeadline: 'Hạn chót / Kỳ hạn',
+        goalDesc: 'Mô tả',
+        typeFuture: 'Tương lai',
+        typeDebt: 'Nợ',
+        typePlan: 'Kế hoạch',
+        typeSubscription: 'Gói đăng ký', // Added
+        // Notification Strings
+        reminderEnable: 'Bật nhắc nhở',
+        reminderTime: 'Thời gian nhắc',
+        remind24h: 'Trước 24 giờ',
+        remindOnDay: 'Vào ngày đến hạn',
+        remind3Day: 'Trước 3 ngày',
+        remindCustom: 'Tùy chỉnh (giờ)',
+        notifSettings: 'Cài đặt thông báo',
+        allowNotif: 'Cho phép thông báo',
+        sound: 'Âm thanh',
+        soundDefault: 'Mặc định',
+        // Tools Strings
+        compoundInterest: 'Tính lãi kép',
+        principal: 'Vốn ban đầu',
+        monthlyContribution: 'Đóng góp hàng tháng',
+        interestRate: 'Lãi suất (%/năm)',
+        years: 'Số năm',
+        calculate: 'Tính toán',
+        futureValue: 'Giá trị tương lai',
+        totalInterest: 'Tổng lãi tiền gửi',
+        toolDesc_compound: 'Tính toán sức mạnh của lãi suất kép theo thời gian',
+        // Dynamic Tool Strings
+        addTool: 'Thêm ứng dụng',
+        toolName: 'Tên ứng dụng',
+        toolUrl: 'Đường dẫn (URL)',
+        toolIcon: 'Biểu tượng (Emoji)',
+        toolDesc: 'Mô tả ngắn',
+        openTool: 'Mở',
+        indexTracking: 'Theo dõi chỉ số',
+        trackUsd: 'Theo dõi USD',
+        trackEur: 'Theo dõi EUR',
+        trackBtc: 'Theo dõi Bitcoin',
+        trackEth: 'Theo dõi Ethereum',
     },
     'English': {
         account: 'ACCOUNT',
@@ -102,6 +179,8 @@ const translations = {
         register: 'Sign up',
         categoriesTitle: 'Categories',
         profileTitle: 'Profile',
+        goalsTitle: 'Reminders', // Renamed
+        toolsTitle: 'Tools',
         addCategory: 'Add Category',
         editCategory: 'Edit Category',
         deleteCategory: 'Delete Category',
@@ -124,6 +203,52 @@ const translations = {
         authSuccess: 'Success',
         authError: 'Auth Error',
         deleteBackup: 'Delete Cloud Backup',
+        // Reminders Strings
+        addGoal: 'Add Reminder', // Renamed
+        editGoal: 'Edit Reminder', // Renamed
+        goalType: 'Type',
+        goalTitle: 'Title',
+        goalAmount: 'Amount',
+        goalCurrent: 'Current',
+        goalDeadline: 'Deadline / Cycle',
+        goalDesc: 'Description',
+        typeFuture: 'Future',
+        typeDebt: 'Debt',
+        typePlan: 'Plan',
+        typeSubscription: 'Subscription', // Added
+        // Notification Strings
+        reminderEnable: 'Enable Reminder',
+        reminderTime: 'Remind me',
+        remind24h: '24 hours before',
+        remindOnDay: 'On due date',
+        remind3Day: '3 days before',
+        remindCustom: 'Custom (hours)',
+        notifSettings: 'Notification Settings',
+        allowNotif: 'Allow Notifications',
+        sound: 'Sound',
+        soundDefault: 'Default',
+        // Tools Strings
+        compoundInterest: 'Compound Interest',
+        principal: 'Principal',
+        monthlyContribution: 'Monthly Contribution',
+        interestRate: 'Interest Rate (%/year)',
+        years: 'Years',
+        calculate: 'Calculate',
+        futureValue: 'Future Value',
+        totalInterest: 'Total Interest',
+        toolDesc_compound: 'Calculate the power of compound interest over time',
+        // Dynamic Tool Strings
+        addTool: 'Add App',
+        toolName: 'App Name',
+        toolUrl: 'URL',
+        toolIcon: 'Icon (Emoji)',
+        toolDesc: 'Short Description',
+        openTool: 'Open',
+        indexTracking: 'Index Tracking',
+        trackUsd: 'Track USD',
+        trackEur: 'Track EUR',
+        trackBtc: 'Track Bitcoin',
+        trackEth: 'Track Ethereum',
     },
 };
 
@@ -137,13 +262,56 @@ export default function ProfileScreen({
     onAddCategory,
     onUpdateCategory,
     onDeleteCategory,
+    onRestore,
 }: ProfileScreenProps) {
     const t = translations[language];
     const isDark = theme === 'dark';
     const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-    const [activeTab, setActiveTab] = useState<'profile' | 'categories'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'categories' | 'goals' | 'tools'>('profile');
     const [userName, setUserName] = useState('Nguyễn Văn A');
+
+    // Index Tracking State
+    const [indexSettings, setIndexSettings] = useState({
+        usd: true,
+        eur: true,
+        btc: true,
+        eth: true,
+    });
+    const [isIndexModalVisible, setIsIndexModalVisible] = useState(false);
+    const [currentRates, setCurrentRates] = useState<any>(null);
+
+    // Goals State
+    const [goals, setGoals] = useState<Goal[]>([]);
+    const [isGoalModalVisible, setIsGoalModalVisible] = useState(false);
+    const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+    const [goalType, setGoalType] = useState<Goal['type']>('future');
+    const [goalTitle, setGoalTitle] = useState('');
+    const [goalAmount, setGoalAmount] = useState('');
+    const [goalCurrent, setGoalCurrent] = useState('');
+    const [goalDeadline, setGoalDeadline] = useState('');
+    const [goalDesc, setGoalDesc] = useState('');
+
+    // Notification Fields in Reminder Modal
+    const [reminderEnabled, setReminderEnabled] = useState(true);
+    const [reminderOffset, setReminderOffset] = useState<number>(24 * 60); // default 24h in minutes
+    const [customOffsetHours, setCustomOffsetHours] = useState('');
+
+    // Notification Settings Modal
+    const [isNotifSettingsVisible, setIsNotifSettingsVisible] = useState(false);
+    const [areNotificationsAllowed, setAreNotificationsAllowed] = useState(true);
+
+    // Tools - Compound Interest State
+    const [isCompoundModalVisible, setIsCompoundModalVisible] = useState(false);
+    const [cpPrincipal, setCpPrincipal] = useState('');
+    const [cpMonthly, setCpMonthly] = useState('');
+    const [cpRate, setCpRate] = useState('');
+    const [cpYears, setCpYears] = useState('');
+    const [cpResult, setCpResult] = useState<{ futureValue: number; totalInterest: number } | null>(null);
+
+    // Dynamic Tools State
+    const [dynamicTools, setDynamicTools] = useState<Tool[]>([]);
+    const [activeTool, setActiveTool] = useState<Tool | null>(null);
     const [userEmail, setUserEmail] = useState('nguyenvana@gmail.com');
     const [avatarUri, setAvatarUri] = useState<string | null>(null);
     const [isEditingInfo, setIsEditingInfo] = useState(false);
@@ -169,6 +337,7 @@ export default function ProfileScreen({
 
     useEffect(() => {
         loadUserInfo();
+        fetchRates();
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setCurrentUser(user);
             if (user) {
@@ -179,7 +348,24 @@ export default function ProfileScreen({
                 // For now, let's keep local state but maybe indicate guest
             }
         });
-        return unsubscribe;
+
+        // Listen for dynamic tools
+        const q = query(collection(db, 'mini_apps'), orderBy('createdAt', 'desc'));
+        const unsubscribeTools = onSnapshot(q, (snapshot) => {
+            const toolsList: Tool[] = [];
+            snapshot.forEach((doc) => {
+                toolsList.push({ id: doc.id, ...doc.data() } as Tool);
+            });
+            setDynamicTools(toolsList);
+        }, (error) => {
+            console.error("Firestore Check Error:", error.message);
+            // Optionally set an error state here if you want to show it in UI
+        });
+
+        return () => {
+            unsubscribe();
+            unsubscribeTools();
+        };
     }, []);
 
     const loadUserInfo = async () => {
@@ -196,8 +382,28 @@ export default function ProfileScreen({
                 setEditEmail(email);
             }
             if (avatar) setAvatarUri(avatar);
+
+            const savedGoals = await AsyncStorage.getItem('user_goals');
+            if (savedGoals) {
+                setGoals(JSON.parse(savedGoals));
+            }
+
+            const savedIndexSettings = await AsyncStorage.getItem('index_settings');
+            if (savedIndexSettings) {
+                setIndexSettings(JSON.parse(savedIndexSettings));
+            }
         } catch (error) {
             console.error('Error loading user info:', error);
+        }
+    };
+
+    const fetchRates = async () => {
+        try {
+            const { getFinancialRates } = require('../services/finance');
+            const rates = await getFinancialRates();
+            setCurrentRates(rates);
+        } catch (error) {
+            console.error('Error fetching rates:', error);
         }
     };
 
@@ -252,6 +458,16 @@ export default function ProfileScreen({
             await AsyncStorage.setItem('profile_email', editEmail);
         } catch (error) {
             console.error('Error saving user info:', error);
+        }
+    };
+
+    const toggleIndex = async (key: keyof typeof indexSettings) => {
+        const newSettings = { ...indexSettings, [key]: !indexSettings[key] };
+        setIndexSettings(newSettings);
+        try {
+            await AsyncStorage.setItem('index_settings', JSON.stringify(newSettings));
+        } catch (error) {
+            console.error('Error saving index settings:', error);
         }
     };
 
@@ -316,7 +532,145 @@ export default function ProfileScreen({
     };
 
     const handleRestore = async () => {
-        await SyncService.downloadBackup();
+        await SyncService.downloadBackup(onRestore);
+    };
+
+
+    const handleSaveGoal = async () => {
+        if (!goalTitle || !goalAmount) {
+            Alert.alert('Error', 'Please enter title and target amount');
+            return;
+        }
+
+        let notifId;
+        if (reminderEnabled && goalDeadline) {
+            const triggerDate = NotificationService.calculateTriggerDate(goalDeadline, reminderOffset);
+            if (triggerDate && triggerDate > new Date()) {
+                // Cancel old one if editing
+                if (editingGoal?.notificationId) {
+                    await NotificationService.cancelNotification(editingGoal.notificationId);
+                }
+
+                notifId = await NotificationService.scheduleReminder(
+                    t.goalsTitle + ': ' + goalTitle,
+                    `${t.goalAmount}: ${formatLargeNum(parseFloat(goalAmount))}`,
+                    triggerDate
+                );
+
+                if (!notifId) {
+                    Alert.alert('Notification Error', 'Could not schedule notification. Please check permissions.');
+                }
+            }
+        } else if (editingGoal?.notificationId) {
+            // If disabled but had one previously
+            await NotificationService.cancelNotification(editingGoal.notificationId);
+        }
+
+        const newGoal: Goal = {
+            id: editingGoal ? editingGoal.id : Date.now().toString(),
+            type: goalType,
+            title: goalTitle,
+            targetAmount: parseFloat(goalAmount) || 0,
+            currentAmount: parseFloat(goalCurrent) || 0,
+            deadline: goalDeadline,
+            description: goalDesc,
+            completed: false,
+            reminderEnabled: reminderEnabled,
+            reminderOffset: reminderOffset,
+            notificationId: notifId || undefined,
+        };
+
+        let newGoals;
+        if (editingGoal) {
+            newGoals = goals.map(g => g.id === editingGoal.id ? newGoal : g);
+        } else {
+            newGoals = [...goals, newGoal];
+        }
+
+        setGoals(newGoals);
+        await AsyncStorage.setItem('user_goals', JSON.stringify(newGoals));
+        setIsGoalModalVisible(false);
+        resetGoalForm();
+    };
+
+    const handleDeleteGoal = async (id: string) => {
+        Alert.alert(
+            t.deleteCategory,
+            t.deleteAccountConfirm,
+            [
+                { text: t.cancel, style: 'cancel' },
+                {
+                    text: t.deleteCategory,
+                    style: 'destructive',
+                    onPress: async () => {
+                        const goalToDelete = goals.find(g => g.id === id);
+                        if (goalToDelete?.notificationId) {
+                            await NotificationService.cancelNotification(goalToDelete.notificationId);
+                        }
+                        const newGoals = goals.filter(g => g.id !== id);
+                        setGoals(newGoals);
+                        await AsyncStorage.setItem('user_goals', JSON.stringify(newGoals));
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleEditGoal = (goal: Goal) => {
+        setEditingGoal(goal);
+        setGoalType(goal.type);
+        setGoalTitle(goal.title);
+        setGoalAmount(goal.targetAmount.toString());
+        setGoalCurrent(goal.currentAmount.toString());
+        setGoalDeadline(goal.deadline || '');
+        setGoalDesc(goal.description || '');
+        setReminderEnabled(goal.reminderEnabled ?? true);
+        setReminderOffset(goal.reminderOffset ?? 24 * 60);
+        setIsGoalModalVisible(true);
+    };
+
+    const resetGoalForm = () => {
+        setEditingGoal(null);
+        setGoalType('future');
+        setGoalTitle('');
+        setGoalAmount('');
+        setGoalCurrent('');
+        setGoalDeadline('');
+        setGoalDesc('');
+        setReminderEnabled(true);
+        setReminderOffset(24 * 60);
+    };
+
+    const handleNotificationSettings = async () => {
+        const granted = await NotificationService.registerForPushNotificationsAsync();
+        setAreNotificationsAllowed(!!granted);
+        setIsNotifSettingsVisible(true);
+    };
+
+    // Tools Handlers
+    const calculateCompoundInterest = () => {
+        const P = parseFloat(cpPrincipal) || 0;
+        const PMT = parseFloat(cpMonthly) || 0;
+        const r = (parseFloat(cpRate) || 0) / 100;
+        const t = parseFloat(cpYears) || 0;
+        const n = 12; // monthly compounding
+
+        if (t === 0) return;
+
+        // Future Value of a Series formula
+        // FV = P * (1 + r/n)^(n*t) + PMT * [((1 + r/n)^(n*t) - 1) / (r/n)]
+
+        const compoundFactor = Math.pow(1 + r / n, n * t);
+        const futureValuePrincipal = P * compoundFactor;
+        const futureValueSeries = PMT * ((compoundFactor - 1) / (r / n));
+
+        const totalFutureValue = futureValuePrincipal + futureValueSeries;
+        const totalInvested = P + (PMT * 12 * t);
+
+        setCpResult({
+            futureValue: totalFutureValue,
+            totalInterest: totalFutureValue - totalInvested
+        });
     };
 
     const handleDeleteBackup = async () => {
@@ -373,29 +727,47 @@ export default function ProfileScreen({
     return (
         <View style={[styles.container, isDark && styles.containerDark]}>
             <View style={[styles.tabContainer, isDark && styles.tabContainerDark]}>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'profile' && styles.activeTab]}
-                    onPress={() => setActiveTab('profile')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'profile' && styles.activeTabText, isDark && activeTab !== 'profile' && styles.textDark70]}>
-                        {t.profileTitle}
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'categories' && styles.activeTab]}
-                    onPress={() => setActiveTab('categories')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'categories' && styles.activeTabText, isDark && activeTab !== 'categories' && styles.textDark70]}>
-                        {t.categoriesTitle}
-                    </Text>
-                </TouchableOpacity>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 24 }}>
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'profile' && styles.activeTab]}
+                        onPress={() => setActiveTab('profile')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'profile' && styles.activeTabText, isDark && activeTab !== 'profile' && styles.textDark70]}>
+                            {t.profileTitle}
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'goals' && styles.activeTab]}
+                        onPress={() => setActiveTab('goals')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'goals' && styles.activeTabText, isDark && activeTab !== 'goals' && styles.textDark70]}>
+                            {t.goalsTitle}
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'tools' && styles.activeTab]}
+                        onPress={() => setActiveTab('tools')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'tools' && styles.activeTabText, isDark && activeTab !== 'tools' && styles.textDark70]}>
+                            {t.toolsTitle}
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'categories' && styles.activeTab]}
+                        onPress={() => setActiveTab('categories')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'categories' && styles.activeTabText, isDark && activeTab !== 'categories' && styles.textDark70]}>
+                            {t.categoriesTitle}
+                        </Text>
+                    </TouchableOpacity>
+                </ScrollView>
             </View>
 
             <ScrollView
                 style={[styles.container, isDark && styles.containerDark]}
                 contentContainerStyle={styles.content}
             >
-                {activeTab === 'profile' ? (
+                {activeTab === 'profile' && (
                     <>
                         {/* Profile Header */}
                         <View style={[styles.header, isDark && styles.headerDark]}>
@@ -491,10 +863,10 @@ export default function ProfileScreen({
                                     isDark={isDark}
                                 />
                                 <MenuItem
-                                    icon="card"
-                                    iconBgColor="#3B82F6" // Blue
-                                    label={t.paymentMethods}
-                                    onPress={() => { }}
+                                    icon="analytics"
+                                    iconBgColor="#10b981" // Green
+                                    label={t.indexTracking}
+                                    onPress={() => setIsIndexModalVisible(true)}
                                     isDark={isDark}
                                 />
                                 <MenuItem
@@ -526,7 +898,7 @@ export default function ProfileScreen({
                                     icon="notifications"
                                     iconBgColor="#F59E0B"
                                     label={t.notifications}
-                                    onPress={() => { }}
+                                    onPress={handleNotificationSettings}
                                     isDark={isDark}
                                 />
                                 <MenuItem
@@ -561,7 +933,137 @@ export default function ProfileScreen({
                             </TouchableOpacity>
                         )}
                     </>
-                ) : (
+                )}
+
+                {activeTab === 'goals' && (
+                    <View style={styles.categoriesContainer}>
+                        <TouchableOpacity
+                            style={[styles.addCategoryBtn, isDark && styles.addCategoryBtnDark]}
+                            onPress={() => {
+                                resetGoalForm();
+                                setIsGoalModalVisible(true);
+                            }}
+                        >
+                            <Ionicons name="add-circle" size={24} color="#ab10b9" />
+                            <Text style={[styles.addCategoryText, isDark && styles.textDark]}>{t.addGoal}</Text>
+                        </TouchableOpacity>
+
+                        {(['future', 'debt', 'plan'] as const).map((type) => {
+                            const typeGoals = goals.filter(g => g.type === type);
+                            if (typeGoals.length === 0) return null;
+
+                            let sectionTitle = t.typeFuture;
+                            if (type === 'debt') sectionTitle = t.typeDebt;
+                            if (type === 'plan') sectionTitle = t.typePlan;
+
+                            return (
+                                <View key={type} style={styles.section}>
+                                    <Text style={styles.sectionTitle}>{sectionTitle}</Text>
+                                    <View style={[styles.menuCard, isDark && styles.menuCardDark]}>
+                                        {typeGoals.map((g, idx) => (
+                                            <TouchableOpacity
+                                                key={g.id}
+                                                style={[styles.menuItem, idx !== typeGoals.length - 1 && styles.menuItemBorder, isDark && styles.menuItemBorderDark]}
+                                                onPress={() => handleEditGoal(g)}
+                                            >
+                                                <View style={styles.menuLeft}>
+                                                    <View style={[styles.menuIconBox, { backgroundColor: type === 'debt' ? '#fee2e2' : '#e0e7ff' }]}>
+                                                        <Ionicons
+                                                            name={type === 'debt' ? 'alert-circle' : (type === 'future' ? 'rocket' : 'calendar')}
+                                                            size={20}
+                                                            color={type === 'debt' ? '#EF4444' : '#6366F1'}
+                                                        />
+                                                    </View>
+                                                    <View>
+                                                        <Text style={[styles.menuLabel, isDark && styles.textDark]}>{g.title}</Text>
+                                                        <Text style={{ fontSize: 12, color: '#6B7280' }}>
+                                                            {formatLargeNum(g.currentAmount)} / {formatLargeNum(g.targetAmount)}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                                <View style={styles.menuRight}>
+                                                    <Text style={[styles.menuValue, { color: g.currentAmount >= g.targetAmount ? '#10b981' : '#6B7280' }]}>
+                                                        {Math.round((g.currentAmount / g.targetAmount) * 100)}%
+                                                    </Text>
+                                                    <TouchableOpacity onPress={() => handleDeleteGoal(g.id)}>
+                                                        <Ionicons name="trash" size={18} color="#EF4444" />
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+                            );
+                        })}
+                    </View>
+                )}
+
+                {activeTab === 'tools' && (
+                    <View style={styles.categoriesContainer}>
+                        {/* Native Tools */}
+                        <Text style={[styles.sectionTitle, { marginLeft: 0, marginBottom: 8 }]}>Native Tools</Text>
+                        <View style={styles.section}>
+                            <TouchableOpacity
+                                style={[styles.menuCard, isDark && styles.menuCardDark, { padding: 16 }]}
+                                onPress={() => setIsCompoundModalVisible(true)}
+                            >
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                                    <View style={[styles.menuIconBox, { backgroundColor: '#d1fae5', width: 48, height: 48, borderRadius: 16 }]}>
+                                        <Ionicons name="trending-up" size={24} color="#10b981" />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[styles.menuLabel, isDark && styles.textDark, { fontSize: 16 }]}>
+                                            {t.compoundInterest}
+                                        </Text>
+                                        <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>
+                                            {t.toolDesc_compound}
+                                        </Text>
+                                    </View>
+                                    <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Dynamic Mini Apps */}
+                        <View style={{ marginTop: 24, marginBottom: 8 }}>
+                            <Text style={[styles.sectionTitle, { marginLeft: 0, marginBottom: 0 }]}>Mini Apps & Games</Text>
+                        </View>
+
+                        <View style={{ gap: 12 }}>
+                            {dynamicTools.map((tool) => (
+                                <TouchableOpacity
+                                    key={tool.id}
+                                    style={[styles.menuCard, isDark && styles.menuCardDark, { padding: 16 }]}
+                                    onPress={() => setActiveTool(tool)}
+                                >
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                                        <View style={[styles.menuIconBox, { backgroundColor: isDark ? '#374151' : '#F3F4F6', width: 48, height: 48, borderRadius: 16 }]}>
+                                            <Text style={{ fontSize: 24 }}>{tool.icon}</Text>
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.menuLabel, isDark && styles.textDark, { fontSize: 16 }]}>
+                                                {tool.title}
+                                            </Text>
+                                            {tool.description ? (
+                                                <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>
+                                                    {tool.description}
+                                                </Text>
+                                            ) : null}
+                                        </View>
+                                        <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                            {dynamicTools.length === 0 && (
+                                <Text style={{ textAlign: 'center', color: '#6B7280', marginTop: 20 }}>
+                                    No apps available.
+                                </Text>
+                            )}
+                        </View>
+                    </View>
+                )}
+
+                {activeTab === 'categories' && (
                     <View style={styles.categoriesContainer}>
                         <TouchableOpacity
                             style={[styles.addCategoryBtn, isDark && styles.addCategoryBtnDark]}
@@ -727,6 +1229,333 @@ export default function ProfileScreen({
                 </View>
             </Modal>
 
+
+            {/* Goal Modal */}
+            <Modal
+                visible={isGoalModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setIsGoalModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+                        <Text style={[styles.modalTitle, isDark && styles.textDark]}>
+                            {editingGoal ? t.editGoal : t.addGoal}
+                        </Text>
+
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 500 }}>
+                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.goalType}</Text>
+                            <View style={{ flexDirection: 'row', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+                                {(['subscription', 'debt', 'plan', 'future'] as const).map(type => (
+                                    <TouchableOpacity
+                                        key={type}
+                                        onPress={() => setGoalType(type)}
+                                        style={[{
+                                            paddingVertical: 8,
+                                            paddingHorizontal: 12,
+                                            borderRadius: 8,
+                                            backgroundColor: isDark ? '#374151' : '#F3F4F6',
+                                            borderWidth: 1,
+                                            borderColor: 'transparent'
+                                        }, goalType === type && {
+                                            backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+                                            borderColor: '#ab10b9'
+                                        }]}
+                                    >
+                                        <Text style={{
+                                            fontWeight: goalType === type ? 'bold' : 'normal',
+                                            color: goalType === type ? '#ab10b9' : (isDark ? '#FFF' : '#000')
+                                        }}>
+                                            {type === 'future' ? t.typeFuture : (type === 'debt' ? t.typeDebt : (type === 'plan' ? t.typePlan : t.typeSubscription))}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.goalTitle}</Text>
+                            <TextInput
+                                style={[styles.input, isDark && styles.inputDark]}
+                                value={goalTitle}
+                                onChangeText={setGoalTitle}
+                                placeholder={t.goalTitle}
+                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                            />
+
+                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.goalAmount}</Text>
+                            <TextInput
+                                style={[styles.input, isDark && styles.inputDark]}
+                                value={goalAmount}
+                                onChangeText={setGoalAmount}
+                                keyboardType="numeric"
+                                placeholder="0"
+                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                            />
+
+                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.goalCurrent}</Text>
+                            <TextInput
+                                style={[styles.input, isDark && styles.inputDark]}
+                                value={goalCurrent}
+                                onChangeText={setGoalCurrent}
+                                keyboardType="numeric"
+                                placeholder="0"
+                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                            />
+
+                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.goalDeadline}</Text>
+                            <TextInput
+                                style={[styles.input, isDark && styles.inputDark]}
+                                value={goalDeadline}
+                                onChangeText={setGoalDeadline}
+                                placeholder="DD/MM/YYYY"
+                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                            />
+
+                            <View style={{ marginBottom: 20 }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                        <Ionicons name="notifications" size={20} color={isDark ? '#FFF' : '#000'} />
+                                        <Text style={[styles.inputLabel, isDark && styles.textDark, { marginBottom: 0 }]}>{t.reminderEnable}</Text>
+                                    </View>
+                                    <Switch
+                                        value={reminderEnabled}
+                                        onValueChange={setReminderEnabled}
+                                        trackColor={{ false: '#767577', true: '#10b981' }}
+                                    />
+                                </View>
+
+                                {reminderEnabled && (
+                                    <View>
+                                        <Text style={[styles.inputLabel, isDark && styles.textDark, { fontSize: 12, marginBottom: 8 }]}>{t.reminderTime}</Text>
+                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                            {[
+                                                { label: t.remindOnDay, val: 0 },
+                                                { label: t.remind24h, val: 24 * 60 },
+                                                { label: t.remind3Day, val: 3 * 24 * 60 },
+                                            ].map((opt) => (
+                                                <TouchableOpacity
+                                                    key={opt.val}
+                                                    style={[{
+                                                        paddingVertical: 6,
+                                                        paddingHorizontal: 12,
+                                                        borderRadius: 8,
+                                                        backgroundColor: isDark ? '#374151' : '#F3F4F6',
+                                                    }, reminderOffset === opt.val && {
+                                                        backgroundColor: isDark ? '#064E3B' : '#D1FAE5',
+                                                        borderWidth: 1,
+                                                        borderColor: '#10b981'
+                                                    }]}
+                                                    onPress={() => setReminderOffset(opt.val)}
+                                                >
+                                                    <Text style={{
+                                                        fontSize: 12,
+                                                        color: reminderOffset === opt.val ? '#10b981' : (isDark ? '#9CA3AF' : '#6B7280')
+                                                    }}>
+                                                        {opt.label}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                <TouchableOpacity
+                                                    style={[{
+                                                        paddingVertical: 6,
+                                                        paddingHorizontal: 12,
+                                                        borderRadius: 8,
+                                                        backgroundColor: isDark ? '#374151' : '#F3F4F6',
+                                                    }, ![0, 1440, 4320].includes(reminderOffset) && {
+                                                        backgroundColor: isDark ? '#064E3B' : '#D1FAE5',
+                                                        borderWidth: 1,
+                                                        borderColor: '#10b981'
+                                                    }]}
+                                                    onPress={() => {
+                                                        // Just select it, let input drive value
+                                                        if ([0, 1440, 4320].includes(reminderOffset)) setReminderOffset(-1);
+                                                    }}
+                                                >
+                                                    <Text style={{
+                                                        fontSize: 12,
+                                                        color: ![0, 1440, 4320].includes(reminderOffset) ? '#10b981' : (isDark ? '#9CA3AF' : '#6B7280')
+                                                    }}>
+                                                        {t.remindCustom}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                                {![0, 1440, 4320].includes(reminderOffset) && (
+                                                    <TextInput
+                                                        style={[styles.input, isDark && styles.inputDark, { width: 60, marginBottom: 0, padding: 6, textAlign: 'center' }]}
+                                                        keyboardType="numeric"
+                                                        placeholder="2"
+                                                        onChangeText={(txt) => {
+                                                            setCustomOffsetHours(txt);
+                                                            const hours = parseFloat(txt);
+                                                            if (!isNaN(hours)) setReminderOffset(hours * 60);
+                                                        }}
+                                                    />
+                                                )}
+                                            </View>
+                                        </View>
+                                    </View>
+                                )}
+                            </View>
+                        </ScrollView>
+
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.cancelButton]}
+                                onPress={() => setIsGoalModalVisible(false)}
+                            >
+                                <Text style={styles.cancelButtonText}>{t.cancel}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.saveButton, { backgroundColor: '#ab10b9' }]}
+                                onPress={handleSaveGoal}
+                            >
+                                <Text style={styles.saveButtonText}>{t.save}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Notification Settings Modal */}
+            <Modal
+                visible={isNotifSettingsVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setIsNotifSettingsVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+                        <Text style={[styles.modalTitle, isDark && styles.textDark]}>
+                            {t.notifSettings}
+                        </Text>
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                            <Text style={[styles.menuLabel, isDark && styles.textDark, { fontSize: 16 }]}>{t.allowNotif}</Text>
+                            <Switch
+                                value={areNotificationsAllowed}
+                                onValueChange={async (val) => {
+                                    if (val) {
+                                        const granted = await NotificationService.registerForPushNotificationsAsync();
+                                        setAreNotificationsAllowed(!!granted);
+                                        if (!granted) Alert.alert('Permission Denied', 'Please enable notifications in system settings.');
+                                    } else {
+                                        setAreNotificationsAllowed(false);
+                                        // In reality, can't "un-grant" from app, but simply won't schedule future ones
+                                    }
+                                }}
+                                trackColor={{ false: '#767577', true: '#10b981' }}
+                            />
+                        </View>
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                            <Text style={[styles.menuLabel, isDark && styles.textDark, { fontSize: 16 }]}>{t.sound}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Text style={{ color: '#6B7280', marginRight: 8 }}>{t.soundDefault}</Text>
+                                <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+                            </View>
+                        </View>
+
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.saveButton, { backgroundColor: '#10b981' }]}
+                                onPress={() => setIsNotifSettingsVisible(false)}
+                            >
+                                <Text style={styles.saveButtonText}>{t.save}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Compound Interest Modal */}
+            <Modal
+                visible={isCompoundModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setIsCompoundModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+                        <Text style={[styles.modalTitle, isDark && styles.textDark]}>
+                            {t.compoundInterest}
+                        </Text>
+
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.principal}</Text>
+                            <TextInput
+                                style={[styles.input, isDark && styles.inputDark]}
+                                value={cpPrincipal}
+                                onChangeText={setCpPrincipal}
+                                keyboardType="numeric"
+                                placeholder="0"
+                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                            />
+
+                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.monthlyContribution}</Text>
+                            <TextInput
+                                style={[styles.input, isDark && styles.inputDark]}
+                                value={cpMonthly}
+                                onChangeText={setCpMonthly}
+                                keyboardType="numeric"
+                                placeholder="0"
+                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                            />
+
+                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.interestRate}</Text>
+                            <TextInput
+                                style={[styles.input, isDark && styles.inputDark]}
+                                value={cpRate}
+                                onChangeText={setCpRate}
+                                keyboardType="numeric"
+                                placeholder="7"
+                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                            />
+
+                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.years}</Text>
+                            <TextInput
+                                style={[styles.input, isDark && styles.inputDark]}
+                                value={cpYears}
+                                onChangeText={setCpYears}
+                                keyboardType="numeric"
+                                placeholder="10"
+                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                            />
+
+                            {cpResult && (
+                                <View style={{ padding: 16, backgroundColor: isDark ? '#374151' : '#ecfdf5', borderRadius: 12, marginBottom: 16 }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                        <Text style={{ color: isDark ? '#D1D5DB' : '#4B5563' }}>{t.futureValue}:</Text>
+                                        <Text style={{ fontWeight: 'bold', color: '#10b981', fontSize: 16 }}>
+                                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(cpResult.futureValue)}
+                                        </Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                        <Text style={{ color: isDark ? '#D1D5DB' : '#4B5563' }}>{t.totalInterest}:</Text>
+                                        <Text style={{ fontWeight: 'bold', color: '#059669' }}>
+                                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(cpResult.totalInterest)}
+                                        </Text>
+                                    </View>
+                                </View>
+                            )}
+                        </ScrollView>
+
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.cancelButton]}
+                                onPress={() => setIsCompoundModalVisible(false)}
+                            >
+                                <Text style={styles.cancelButtonText}>{t.cancel}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.saveButton, { backgroundColor: '#10b981' }]}
+                                onPress={calculateCompoundInterest}
+                            >
+                                <Text style={styles.saveButtonText}>{t.calculate}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
             {/* Edit Profile Modal */}
             <Modal
                 visible={isEditingInfo}
@@ -776,6 +1605,126 @@ export default function ProfileScreen({
                             </TouchableOpacity>
                         </View>
                     </View>
+                </View>
+            </Modal>
+
+            {/* Index Tracking Modal */}
+            <Modal
+                visible={isIndexModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setIsIndexModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+                        <Text style={[styles.modalTitle, isDark && styles.textDark]}>
+                            {t.indexTracking}
+                        </Text>
+
+                        <View style={{ gap: 16, marginBottom: 20 }}>
+                            <View style={styles.indexSwitchRow}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                    <Ionicons name="cash-outline" size={24} color="#22C55E" />
+                                    <View>
+                                        <Text style={[styles.menuLabel, isDark && styles.textDark]}>{t.trackUsd}</Text>
+                                        {currentRates?.usd && <Text style={{ fontSize: 12, color: '#6B7280' }}>1 USD = {currentRates.usd.toLocaleString()} VND</Text>}
+                                    </View>
+                                </View>
+                                <Switch
+                                    value={indexSettings.usd}
+                                    onValueChange={() => toggleIndex('usd')}
+                                    trackColor={{ false: '#767577', true: '#10b981' }}
+                                />
+                            </View>
+
+                            <View style={styles.indexSwitchRow}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                    <Ionicons name="cash-outline" size={24} color="#3B82F6" />
+                                    <View>
+                                        <Text style={[styles.menuLabel, isDark && styles.textDark]}>{t.trackEur}</Text>
+                                        {currentRates?.eur && <Text style={{ fontSize: 12, color: '#6B7280' }}>1 EUR = {currentRates.eur.toLocaleString()} VND</Text>}
+                                    </View>
+                                </View>
+                                <Switch
+                                    value={indexSettings.eur}
+                                    onValueChange={() => toggleIndex('eur')}
+                                    trackColor={{ false: '#767577', true: '#10b981' }}
+                                />
+                            </View>
+
+                            <View style={styles.indexSwitchRow}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                    <Ionicons name="logo-bitcoin" size={24} color="#F97316" />
+                                    <View>
+                                        <Text style={[styles.menuLabel, isDark && styles.textDark]}>{t.trackBtc}</Text>
+                                        {currentRates?.btc && <Text style={{ fontSize: 12, color: '#6B7280' }}>1 BTC = ${currentRates.btc.toLocaleString()}</Text>}
+                                    </View>
+                                </View>
+                                <Switch
+                                    value={indexSettings.btc}
+                                    onValueChange={() => toggleIndex('btc')}
+                                    trackColor={{ false: '#767577', true: '#10b981' }}
+                                />
+                            </View>
+
+                            <View style={styles.indexSwitchRow}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                    <Ionicons name="diamond-outline" size={24} color="#6366F1" />
+                                    <View>
+                                        <Text style={[styles.menuLabel, isDark && styles.textDark]}>{t.trackEth}</Text>
+                                        {currentRates?.eth && <Text style={{ fontSize: 12, color: '#6B7280' }}>1 ETH = ${currentRates.eth.toLocaleString()}</Text>}
+                                    </View>
+                                </View>
+                                <Switch
+                                    value={indexSettings.eth}
+                                    onValueChange={() => toggleIndex('eth')}
+                                    trackColor={{ false: '#767577', true: '#10b981' }}
+                                />
+                            </View>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.modalButton, styles.saveButton, { backgroundColor: '#10b981', flex: 0, width: '100%', marginTop: 10 }]}
+                            onPress={() => setIsIndexModalVisible(false)}
+                        >
+                            <Text style={styles.saveButtonText}>{t.save}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Browser Modal for Mini Apps */}
+            <Modal
+                visible={!!activeTool}
+                animationType="slide"
+                presentationStyle="pageSheet"
+                onRequestClose={() => setActiveTool(null)}
+            >
+                <View style={[styles.container, isDark && styles.containerDark]}>
+                    <View style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: 16,
+                        borderBottomWidth: 1,
+                        borderBottomColor: isDark ? '#374151' : '#E5E7EB',
+                        backgroundColor: isDark ? '#1F2937' : '#FFFFFF'
+                    }}>
+                        <TouchableOpacity onPress={() => setActiveTool(null)}>
+                            <Text style={{ color: '#3B82F6', fontSize: 16 }}>Done</Text>
+                        </TouchableOpacity>
+                        <Text style={[styles.menuLabel, isDark && styles.textDark, { fontSize: 16 }]}>{activeTool?.title}</Text>
+                        <View style={{ width: 40 }} />
+                    </View>
+                    {activeTool && (
+                        <WebView
+                            source={activeTool.htmlContent ? { html: activeTool.htmlContent } : { uri: activeTool.url || '' }}
+                            style={{ flex: 1, backgroundColor: isDark ? '#111827' : '#FFFFFF' }}
+                            startInLoadingState
+                            renderLoading={() => <ActivityIndicator style={{ position: 'absolute', top: '50%', left: '50%' }} />}
+                            originWhitelist={['*']}
+                        />
+                    )}
                 </View>
             </Modal>
         </View>
@@ -1073,6 +2022,7 @@ const styles = StyleSheet.create({
         padding: 14,
         borderRadius: 12,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     cancelButton: {
         backgroundColor: '#F3F4F6',
@@ -1189,5 +2139,10 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 12,
         fontWeight: 'bold',
+    },
+    indexSwitchRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
 });

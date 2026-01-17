@@ -79,7 +79,7 @@ const TypingIndicator = ({ isDark }: { isDark: boolean }) => {
     );
 };
 
-const TypewriterText = ({ text, isDark, onComplete, scrollRef }: { text: string; isDark: boolean; onComplete?: () => void; scrollRef?: React.RefObject<ScrollView> }) => {
+const TypewriterText = ({ text, isDark, onComplete, scrollRef }: { text: string; isDark: boolean; onComplete?: () => void; scrollRef?: React.RefObject<ScrollView | null> }) => {
     const [displayedText, setDisplayedText] = useState('');
 
     // Simple interval-based typewriter
@@ -89,9 +89,11 @@ const TypewriterText = ({ text, isDark, onComplete, scrollRef }: { text: string;
 
         const timer = setInterval(() => {
             if (i < text.length) {
-                setDisplayedText(text.substring(0, i + 1));
-                i++;
-                if (i % 10 === 0 && scrollRef?.current) {
+                // Maximum burst: 15 characters per tick
+                const nextI = Math.min(i + 15, text.length);
+                setDisplayedText(text.substring(0, nextI));
+                i = nextI;
+                if (i % 30 === 0 && scrollRef?.current) {
                     scrollRef.current.scrollToEnd({ animated: true });
                 }
             } else {
@@ -99,7 +101,7 @@ const TypewriterText = ({ text, isDark, onComplete, scrollRef }: { text: string;
                 scrollRef?.current?.scrollToEnd({ animated: true });
                 onComplete?.();
             }
-        }, 15); // Faster typing speed
+        }, 5); // 5ms interval + 15 chars/tick = Extreme speed
 
         return () => clearInterval(timer);
     }, [text]);
@@ -134,54 +136,11 @@ const translations = {
 };
 
 const formatAIResponse = (text: string, isDark: boolean) => {
-    return text.split('\n').map((line, i) => {
-        let content = line.trim();
-        if (!content) return <View key={i} style={{ height: 8 }} />;
-
-        const isBullet = content.startsWith('* ') || content.startsWith('- ');
-        if (isBullet) {
-            content = content.replace(/^[*|-]\s+/, '');
-        }
-
-        const parts = content.split(/(\*\*.*?\*\*)/g);
-        const element = (
-            <Text key={i} style={[styles.messageText, isDark && styles.messageTextDark]}>
-                {parts.map((part, j) => {
-                    if (part.startsWith('**') && part.endsWith('**')) {
-                        return (
-                            <Text
-                                key={j}
-                                style={[
-                                    styles.boldText,
-                                    isDark && styles.boldTextDark,
-                                ]}
-                            >
-                                {part.slice(2, -2)}
-                            </Text>
-                        );
-                    }
-                    return part;
-                })}
-            </Text>
-        );
-
-        return isBullet ? (
-            <View key={i} style={styles.bulletRow}>
-                <Text style={styles.bullet}>•</Text>
-                <View style={styles.bulletContent}>{element}</View>
-            </View>
-        ) : (
-            <Text
-                key={i}
-                style={[
-                    styles.messageText,
-                    isDark && styles.messageTextDark,
-                ]}
-            >
-                {element}
-            </Text>
-        );
-    });
+    return (
+        <Text style={[styles.messageText, isDark && styles.messageTextDark]}>
+            {text}
+        </Text>
+    );
 };
 
 const personalities = [
@@ -263,7 +222,8 @@ export default function ChatScreen({
     const [showPersonalityModal, setShowPersonalityModal] = useState(false);
     const scrollRef = useRef<ScrollView>(null);
     const hasInitialized = useRef(false);
-    const lastMessageCount = useRef(0);
+    const lastMessageCount = useRef(messages.length);
+    const lastProcessedPrompt = useRef<string | null>(null);
 
     const activePersonality = personalities.find(p => p.id === selectedPersonalityId) || personalities[0];
 
@@ -308,9 +268,17 @@ export default function ChatScreen({
     useEffect(() => {
         if (route.params?.initialPrompt) {
             const prompt = route.params.initialPrompt;
-            // Clear the param so it doesn't trigger again on re-focus
-            navigation.setParams({ initialPrompt: undefined });
-            handleSend(prompt);
+            // Robust check: don't re-send if the last message in history is already this prompt
+            const lastMsg = messages[messages.length - 1];
+            if (lastMsg?.role === 'user' && lastMsg.text === prompt) {
+                return;
+            }
+
+            if (prompt !== lastProcessedPrompt.current) {
+                lastProcessedPrompt.current = prompt;
+                navigation.setParams({ initialPrompt: undefined });
+                handleSend(prompt);
+            }
         }
     }, [route.params?.initialPrompt]);
 
@@ -318,19 +286,20 @@ export default function ChatScreen({
         scrollRef.current?.scrollToEnd({ animated: true });
     }, [messages]);
 
+    const now = new Date();
+    const todayISO = now.toISOString().split('T')[0];
     const systemPrompt = `
 ${activePersonality.systemPrompt(language)}
 
-Recent user transaction data:
-${JSON.stringify(transactions.slice(0, 50))}
+Ngày: ${todayISO}
+Dữ liệu chi tiêu: ${JSON.stringify(transactions.slice(0, 15))}
 
-Your instructions:
-1. Analyze spending patterns based on your personality.
-2. Maintain your specific tone throughout the conversation.
-3. Give solid financial advice wrapped in your personality style.
-4. Use bullet points and **bold text** for key numbers.
-5. Keep responses under 200 words.
-  `;
+Quy tắc:
+- Chat tự nhiên như bạn bè (Zalo/Messenger). 
+- Chỉ nhắc đến tiền khi thực sự cần.
+- Không in đậm, không gạch đầu dòng, không đề mục.
+- Ngắn gọn, xuống dòng tự nhiên.
+`;
 
     const handleSend = async (directText?: string) => {
         const textToSend = directText || input;
@@ -347,7 +316,15 @@ Your instructions:
             if (!apiKey) throw new Error('API key not found');
 
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+            const model = genAI.getGenerativeModel({
+                model: 'gemini-3-flash-preview',
+                // @ts-ignore
+                tools: [
+                    {
+                        googleSearch: {},
+                    },
+                ],
+            });
 
             const result = await model.generateContent({
                 contents: [
@@ -465,10 +442,11 @@ Your instructions:
                     contentContainerStyle={styles.messagesContent}
                 >
                     {messages.map((msg, idx) => {
-                        // Check if this is the last message and it's new
+                        // Check if this is the last message and it's truly new
                         const isLastMessage = idx === messages.length - 1;
                         const isNewMessage = messages.length > lastMessageCount.current;
-                        const shouldTypewrite = msg.role === 'model' && isLastMessage && isNewMessage;
+                        // Never typewrite the intro (first message) or old messages
+                        const shouldTypewrite = msg.role === 'model' && isLastMessage && isNewMessage && idx > 0;
 
                         if (msg.role === 'model') {
                         }
@@ -487,7 +465,7 @@ Your instructions:
                                 {msg.role === 'model' ? (
                                     shouldTypewrite ? (
                                         <TypewriterText
-                                            key={`typewriter-${idx}`}
+                                            key={`typewriter - ${idx} `}
                                             text={msg.text}
                                             isDark={isDark}
                                             onComplete={() => { lastMessageCount.current = messages.length; }}
@@ -520,9 +498,6 @@ Your instructions:
                         >
                             <View style={styles.loadingRow}>
                                 <TypingIndicator isDark={isDark} />
-                                <Text style={[styles.loadingText, isDark && styles.textLight]}>
-                                    {t.thinking}
-                                </Text>
                             </View>
                         </View>
                     )}

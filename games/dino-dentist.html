@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Crocodile Dentist Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --green-light: #4ade80;
+            --green-mid: #22c55e;
+            --green-dark: #166534;
+            --mouth-bg: #991b1b;
+            --tooth-white: #ffffff;
+            --accent-red: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #020617;
+            background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=800&q=80');
+            background-size: cover;
+            background-position: center;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .game-wrapper {
+            width: 100%;
+            max-width: 500px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .header {
+            margin-top: 40px;
+            text-align: center;
+            z-index: 10;
+        }
+
+        h1 {
+            color: #fbbf24;
+            font-size: 32px;
+            font-weight: 900;
+            text-transform: uppercase;
+            text-shadow: 0 4px 0px rgba(0, 0, 0, 0.5), 0 0 20px rgba(251, 191, 36, 0.3);
+            margin-bottom: 5px;
+        }
+
+        .instruction {
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 20px;
+            border-radius: 50px;
+            backdrop-filter: blur(5px);
+        }
+
+        .dino-stage {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            perspective: 1000px;
+        }
+
+        .dino-body {
+            width: 320px;
+            height: 400px;
+            position: relative;
+            transform-style: preserve-3d;
+        }
+
+        .upper-jaw-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 280px;
+            height: 180px;
+            z-index: 5;
+            transform-origin: bottom;
+            transition: transform 0.2s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+        }
+
+        .upper-jaw {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 30%, var(--green-light), var(--green-mid), var(--green-dark));
+            border-radius: 140px 140px 10px 10px;
+            border: 4px solid var(--green-dark);
+            box-shadow: inset 0 10px 20px rgba(255, 255, 255, 0.3), 0 10px 30px rgba(0, 0, 0, 0.5);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .eye-container {
+            display: flex;
+            gap: 40px;
+            margin-top: 50px;
+        }
+
+        .eye {
+            width: 30px;
+            height: 35px;
+            background: white;
+            border-radius: 50%;
+            border: 3px solid #000;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pupil {
+            width: 12px;
+            height: 12px;
+            background: black;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .eye-angry .pupil {
+            width: 14px;
+            height: 4px;
+            border-radius: 0;
+            transform: translate(-50%, -50%) rotate(20deg);
+        }
+
+        .lower-jaw {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 220px;
+            background: radial-gradient(circle at 50% 80%, var(--green-mid), var(--green-dark));
+            border-radius: 20px 20px 150px 150px;
+            border: 4px solid var(--green-dark);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+        }
+
+        .mouth-inner {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 0%, #7f1d1d, #450a0a);
+            border-radius: 10px 10px 120px 120px;
+            border: 4px solid #450a0a;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tooth {
+            position: absolute;
+            width: 28px;
+            height: 40px;
+            background: linear-gradient(to bottom, #ffffff, #e2e8f0);
+            border-radius: 8px 8px 15px 15px;
+            border-bottom: 5px solid #94a3b8;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            z-index: 2;
+            transform-origin: center top;
+        }
+
+        .tooth.pressed {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.5);
+        }
+
+        .biting .upper-jaw-container {
+            transform: translateX(-50%) rotateX(-85deg) translateY(120px);
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .overlay.show {
+            display: flex;
+        }
+
+        .lose-card {
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 32px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            animation: zoomIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 32px;
+            color: #ef4444;
+            font-weight: 900;
+        }
+
+        .btn-restart {
+            margin-top: 30px;
+            background: #22c55e;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #15803d;
+        }
+
+        @keyframes zoomIn {
+            from {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        #setupPhase {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .setup-card {
+            background: white;
+            padding: 40px;
+            border-radius: 32px;
+            text-align: center;
+            width: 90%;
+            max-width: 320px;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            font-size: 24px;
+            text-align: center;
+            border: 3px solid #e2e8f0;
+            border-radius: 16px;
+            margin: 20px 0;
+            font-weight: 900;
+            color: #1e293b;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="game-wrapper">
+        <div class="header">
+            <h1>Croco Dentist</h1>
+            <div class="instruction">Chạm vào răng để khám</div>
+        </div>
+
+        <div id="setupPhase">
+            <div class="setup-card">
+                <h2>Cấu hình</h2>
+                <p>Số lượng răng (5-13)</p>
+                <input type="number" id="toothCount" value="10" min="5" max="13">
+                <button class="btn-restart" style="width: 100%;" onclick="initGame()">BẮT ĐẦU</button>
+            </div>
+        </div>
+
+        <div class="dino-stage">
+            <div class="dino-body" id="dinoContainer">
+                <div class="upper-jaw-container">
+                    <div class="upper-jaw">
+                        <div class="eye-container">
+                            <div class="eye">
+                                <div class="pupil"></div>
+                            </div>
+                            <div class="eye">
+                                <div class="pupil"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lower-jaw">
+                    <div class="mouth-inner" id="mouthInner">
+                        <!-- Teeth placed by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="overlay" id="overlay">
+            <div class="lose-card">
+                <h2>BỊ CẮN RỒI! 🦖</h2>
+                <p style="margin-top: 10px; font-weight: 500;">Hôm nay bạn "đen" quá...</p>
+                <button class="btn-restart" onclick="reset()">CHƠI LẠI</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let bombIndex = -1;
+        let isOver = false;
+
+        const audio = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSfx(freq, type, duration, vol) {
+            const osc = audio.createOscillator();
+            const gain = audio.createGain();
+            osc.connect(gain);
+            gain.connect(audio.destination);
+            osc.frequency.setValueAtTime(freq, audio.currentTime);
+            osc.type = type;
+            gain.gain.setValueAtTime(vol, audio.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + duration);
+            osc.start();
+            osc.stop(audio.currentTime + duration);
+        }
+
+        function initGame() {
+            const count = Math.min(13, Math.max(5, parseInt(document.getElementById('toothCount').value) || 10));
+            bombIndex = Math.floor(Math.random() * count);
+            isOver = false;
+
+            const mouth = document.getElementById('mouthInner');
+            mouth.innerHTML = '';
+
+            // Circular Placement Logic with Gaps
+            const centerX = 135; // Center of mouth-inner width
+            const centerY = 30;  // Top of mouth-inner
+            const radiusX = 100; // Width of ellipse
+            const radiusY = 120; // Height of ellipse
+
+            // Spread angles more to create gaps
+            const startAngle = 15 * Math.PI / 180;
+            const endAngle = 165 * Math.PI / 180;
+            const step = (endAngle - startAngle) / (count - 1);
+
+            for (let i = 0; i < count; i++) {
+                const angle = startAngle + (i * step);
+                const t = document.createElement('div');
+                t.className = 'tooth';
+
+                // Position on ellipse
+                const x = centerX + radiusX * Math.cos(angle) - 14; // 14 is half-width (28/2)
+                const y = centerY + radiusY * Math.sin(angle) - 20;
+
+                t.style.left = `${x}px`;
+                t.style.top = `${y}px`;
+
+                // Rotate to face center
+                const rotation = (angle * 180 / Math.PI) - 90;
+                t.style.transform = `rotate(${rotation}deg)`;
+
+                t.onclick = () => pressTooth(i, t);
+                mouth.appendChild(t);
+            }
+
+            document.getElementById('setupPhase').style.display = 'none';
+        }
+
+        function pressTooth(idx, el) {
+            if (isOver) return;
+            el.classList.add('pressed');
+            playSfx(600, 'sine', 0.1, 0.1);
+
+            if (idx === bombIndex) {
+                gameOver();
+            }
+        }
+
+        function gameOver() {
+            isOver = true;
+            document.getElementById('dinoContainer').classList.add('biting');
+            document.querySelectorAll('.eye').forEach(e => e.classList.add('eye-angry'));
+            playSfx(100, 'square', 0.3, 0.2);
+            setTimeout(() => {
+                document.getElementById('overlay').classList.add('show');
+            }, 400);
+        }
+
+        function reset() {
+            document.getElementById('overlay').classList.remove('show');
+            document.getElementById('dinoContainer').classList.remove('biting');
+            document.querySelectorAll('.eye').forEach(e => e.classList.remove('eye-angry'));
+            document.getElementById('setupPhase').style.display = 'flex';
+        }
+    </script>
+</body>
+
+</html>

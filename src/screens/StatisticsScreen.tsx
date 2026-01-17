@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     View,
     Text,
@@ -70,6 +71,28 @@ export default function StatisticsScreen({
     const isDark = theme === 'dark';
     const [timeRange, setTimeRange] = useState<TimeRange>('month');
     const [viewerImage, setViewerImage] = useState<string | null>(null);
+    const [isAmountVisible, setIsAmountVisible] = useState(true);
+
+    React.useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            loadVisibility();
+        });
+        loadVisibility();
+        return unsubscribe;
+    }, [navigation]);
+
+    const loadVisibility = async () => {
+        const savedVisibility = await AsyncStorage.getItem('amount_visibility');
+        if (savedVisibility !== null) {
+            setIsAmountVisible(savedVisibility === 'true');
+        }
+    };
+
+    const toggleAmountVisibility = async () => {
+        const nextValue = !isAmountVisible;
+        setIsAmountVisible(nextValue);
+        await AsyncStorage.setItem('amount_visibility', nextValue.toString());
+    };
 
     // Load font for charts
     // const font = useFont(inter, 10); // Optional: can use default if not available
@@ -204,8 +227,18 @@ export default function StatisticsScreen({
                         ₫
                     </Text>
                     <Text style={[styles.balanceValue, isDark && styles.textDark]}>
-                        {formatCompactCurrency(balance)}
+                        {isAmountVisible ? formatCurrency(balance) : '******'}
                     </Text>
+                    <TouchableOpacity
+                        onPress={toggleAmountVisibility}
+                        style={{ marginLeft: 8, marginTop: 12 }}
+                    >
+                        <Ionicons
+                            name={isAmountVisible ? "eye-outline" : "eye-off-outline"}
+                            size={20}
+                            color={isDark ? '#9CA3AF' : '#6B7280'}
+                        />
+                    </TouchableOpacity>
                 </View>
             </View>
 
@@ -329,7 +362,7 @@ export default function StatisticsScreen({
                     <Text style={[styles.cardTitle, isDark && styles.textDark]}>
                         {t.transactions}
                     </Text>
-                    <TouchableOpacity>
+                    <TouchableOpacity onPress={() => navigation.navigate('Calendar')}>
                         <Text style={styles.seeAllText}>{t.seeAll}</Text>
                     </TouchableOpacity>
                 </View>
@@ -389,7 +422,7 @@ export default function StatisticsScreen({
                                     ]}
                                 >
                                     {isExpense ? '-' : '+'}
-                                    {formatCurrency(tx.amount)}
+                                    {isAmountVisible ? formatCurrency(tx.amount) : '******'}
                                 </Text>
                             </TouchableOpacity>
                         );

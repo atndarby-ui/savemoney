@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quantum Randomizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --primary: #8b5cf6;
+            /* Violet */
+            --accent: #06b6d4;
+            /* Cyan */
+            --text-main: #f8fafc;
+            --text-secondary: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.15) 0px, transparent 50%);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 400px;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 24px;
+            padding: 32px 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+            position: relative;
+        }
+
+        h1 {
+            margin: 0 0 8px 0;
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        p.subtitle {
+            margin: 0 0 32px 0;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .input-group {
+            margin-bottom: 24px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            margin-left: 4px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
+            margin-top: -7px;
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: transparent;
+        }
+
+        .digit-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent);
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .result-display {
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 32px;
+            position: relative;
+        }
+
+        .result-number {
+            font-size: 48px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 2px;
+            text-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+            transform: scale(0.9);
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .result-number.popping {
+            transform: scale(1.1);
+        }
+
+        .btn-generate {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 16px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-generate:active {
+            transform: scale(0.98);
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+        }
+
+        .btn-generate::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: 0.5s;
+        }
+
+        .btn-generate:active::after {
+            left: 100%;
+            transition: 0s;
+        }
+
+        .history {
+            margin-top: 24px;
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .history-chip {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Particles */
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            animation: rise 1s ease-out forwards;
+        }
+
+        @keyframes rise {
+            0% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-50px) scale(0);
+                opacity: 0;
+            }
+        }
+
+        .copy-toast {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(16, 185, 129, 0.9);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .copy-toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="copy-toast" id="toast">Copied to clipboard!</div>
+        <h1>Quantum RNG</h1>
+        <p class="subtitle">Secure Random Number Generator</p>
+
+        <div class="input-group">
+            <label>DIGIT COUNT</label>
+            <div class="slider-container">
+                <input type="range" id="digitsSlider" min="1" max="12" value="6">
+                <span class="digit-value" id="digitValue">6</span>
+            </div>
+        </div>
+
+        <div class="result-display" id="resultArea">
+            <div class="result-number" id="resultNumber">------</div>
+        </div>
+
+        <button class="btn-generate" onclick="generateNumber()">
+            <span id="btnIcon">🎲</span> GENERATE
+        </button>
+
+        <div class="history" id="history">
+            <!-- Chips go here -->
+        </div>
+    </div>
+
+    <script>
+        const slider = document.getElementById('digitsSlider');
+        const digitValue = document.getElementById('digitValue');
+        const resultNumber = document.getElementById('resultNumber');
+        const historyContainer = document.getElementById('history');
+        const resultArea = document.getElementById('resultArea');
+        const toast = document.getElementById('toast');
+        const btnIcon = document.getElementById('btnIcon');
+
+        // Sounds
+        // Creating simple synth sounds using Web Audio API to avoid external assets
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playClickSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.1);
+
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        function playSuccessSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.1);
+
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.2);
+        }
+
+        slider.oninput = function () {
+            digitValue.textContent = this.value;
+            playClickSound();
+        }
+
+        function generateNumber() {
+            const digits = parseInt(slider.value);
+            const min = Math.pow(10, digits - 1);
+            const max = Math.pow(10, digits) - 1;
+
+            // Animation
+            let interval = setInterval(() => {
+                const tempNum = Math.floor(Math.random() * (max - min + 1)) + min;
+                resultNumber.innerText = tempNum;
+                playClickSound();
+            }, 50);
+
+            // Button Icon Spin
+            btnIcon.style.transition = 'transform 0.5s';
+            btnIcon.style.transform = 'rotate(360deg)';
+
+            setTimeout(() => {
+                clearInterval(interval);
+                let finalNum;
+                // Handle case for 1 digit which min is 1 but we might want 0-9? 
+                // Usually X digits implies length. So 1 digit = 0-9. 2 digits = 10-99.
+                if (digits === 1) {
+                    finalNum = Math.floor(Math.random() * 10);
+                } else {
+                    finalNum = Math.floor(Math.random() * (max - min + 1)) + min;
+                }
+
+                resultNumber.innerText = finalNum;
+                resultNumber.classList.add('popping');
+                setTimeout(() => resultNumber.classList.remove('popping'), 200);
+
+                addToHistory(finalNum);
+                playSuccessSound();
+                createParticles();
+
+                // Reset icon
+                setTimeout(() => {
+                    btnIcon.style.transition = 'none';
+                    btnIcon.style.transform = 'rotate(0deg)';
+                }, 500);
+
+            }, 600);
+        }
+
+        function addToHistory(num) {
+            const chip = document.createElement('div');
+            chip.className = 'history-chip';
+            chip.innerText = num;
+            chip.onclick = () => copyToClipboard(num);
+
+            historyContainer.prepend(chip);
+
+            if (historyContainer.children.length > 5) {
+                historyContainer.lastElementChild.remove();
+            }
+        }
+
+        function createParticles() {
+            for (let i = 0; i < 10; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                p.style.left = (50 + (Math.random() * 40 - 20)) + '%';
+                p.style.top = '50%';
+                p.style.width = (Math.random() * 6 + 4) + 'px';
+                p.style.height = p.style.width;
+                p.style.background = Math.random() > 0.5 ? 'var(--primary)' : 'var(--accent)';
+                p.style.borderRadius = '50%';
+                resultArea.appendChild(p);
+
+                setTimeout(() => p.remove(), 1000);
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 2000);
+            });
+        }
+
+        resultArea.onclick = () => {
+            const text = resultNumber.innerText;
+            if (text !== '------') copyToClipboard(text);
+        }
+
+    </script>
+</body>
+
+</html>

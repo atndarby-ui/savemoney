@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Beer Roulette - Chia Tiền Nhậu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0c0a09;
+            --primary: #f59e0b;
+            /* Amber/Beer color */
+            --primary-dark: #d97706;
+            --secondary: #10b981;
+            --text-main: #fafaf9;
+            --text-muted: #a8a29e;
+            --card-bg: rgba(28, 25, 23, 0.8);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(245, 158, 11, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            flex: 1;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        header {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(to bottom, #fbbf24, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Setup Phase */
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            color: white;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .names-input-container {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .name-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .btn-icon {
+            background: rgba(239, 68, 68, 0.2);
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            color: #ef4444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            padding: 16px;
+            border-radius: 16px;
+            color: black;
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(245, 158, 11, 0.2);
+            transition: transform 0.1s;
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        /* Wheel Phase */
+        #gamePhase {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .wheel-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+        }
+
+        #wheel {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 8px solid #1c1917;
+            position: relative;
+            overflow: hidden;
+            transition: transform 5s cubic-bezier(0.15, 0, 0.15, 1);
+            box-shadow: 0 0 50px rgba(245, 158, 11, 0.2);
+        }
+
+        .pointer {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 30px solid var(--primary);
+            z-index: 10;
+            filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.5));
+        }
+
+        .wheel-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            background: #1c1917;
+            border: 4px solid var(--primary);
+            border-radius: 50%;
+            z-index: 5;
+        }
+
+        /* Result Modal */
+        .result-card {
+            width: 100%;
+            text-align: center;
+        }
+
+        .winner-name {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--primary);
+            margin: 16px 0;
+            text-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .bill-info {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px dashed var(--primary);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .amount {
+            color: var(--primary);
+            font-weight: 700;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <h1>BEER ROULETTE</h1>
+            <p class="subtitle">Ai sẽ là người thanh toán hôm nay?</p>
+        </header>
+
+        <!-- SETUP -->
+        <div id="setupPhase" class="card">
+            <div class="input-group">
+                <label>TỔNG BILL (VNĐ)</label>
+                <input type="number" id="totalBill" placeholder="Nhập số tiền..." value="500000">
+            </div>
+
+            <div class="input-group">
+                <label>DANH SÁCH NGƯỜI NHẬU</label>
+                <div id="namesList" class="names-input-container">
+                    <!-- Name rows -->
+                    <div class="name-row"><input type="text" class="name-input" placeholder="Tên người 1"
+                            value="Anh Tú"></div>
+                    <div class="name-row"><input type="text" class="name-input" placeholder="Tên người 2"
+                            value="Bảo Nam"></div>
+                </div>
+                <button onclick="addNameRow()"
+                    style="background: none; border: none; color: var(--secondary); font-size: 13px; font-weight: 600; margin-top: 12px; cursor: pointer;">+
+                    Thêm người</button>
+            </div>
+
+            <button class="btn-primary" onclick="startRolling()">TIẾP TỤC</button>
+        </div>
+
+        <!-- GAME -->
+        <div id="gamePhase">
+            <div class="bill-info">
+                <span>Mỗi người: <span id="splitAmount" class="amount">0đ</span></span>
+                <span>Tổng: <span id="displayTotal" class="amount">0đ</span></span>
+            </div>
+
+            <div class="wheel-container">
+                <div class="pointer"></div>
+                <div class="wheel-center"></div>
+                <canvas id="wheel" width="600" height="600"></canvas>
+            </div>
+
+            <button id="spinBtn" class="btn-primary" onclick="spin()">VÒNG QUAY ĐỊNH MỆNH</button>
+
+            <div id="resultArea" class="card result-card hidden">
+                <label>KẾT QUẢ</label>
+                <div class="winner-name" id="winnerName">---</div>
+                <p id="winnerAction" style="color: var(--text-muted); font-size: 14px;">Chúc mừng bạn đã được bao! (Hoặc
+                    phải bao...)</p>
+                <button class="btn-primary" style="margin-top: 20px; background: rgba(255,255,255,0.05); color: white;"
+                    onclick="reset()">LÀM LẠI</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let names = [];
+        let total = 0;
+        const colors = ['#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#ef4444', '#06b6d4', '#f97316'];
+
+        function addNameRow() {
+            const container = document.getElementById('namesList');
+            const div = document.createElement('div');
+            div.className = 'name-row';
+            div.innerHTML = `
+                <input type="text" class="name-input" placeholder="Tên người ${container.children.length + 1}">
+                <button class="btn-icon" onclick="this.parentElement.remove()">✕</button>
+            `;
+            container.appendChild(div);
+        }
+
+        function startRolling() {
+            const inputs = document.querySelectorAll('.name-input');
+            names = Array.from(inputs).map(i => i.value.trim()).filter(v => v !== '');
+            total = parseFloat(document.getElementById('totalBill').value) || 0;
+
+            if (names.length < 2) {
+                alert('Vui lòng nhập ít nhất 2 người!');
+                return;
+            }
+
+            document.getElementById('setupPhase').style.display = 'none';
+            document.getElementById('gamePhase').style.display = 'flex';
+
+            document.getElementById('displayTotal').innerText = formatMoney(total);
+            document.getElementById('splitAmount').innerText = formatMoney(total / names.length);
+
+            drawWheel();
+        }
+
+        function formatMoney(num) {
+            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num);
+        }
+
+        function drawWheel() {
+            const canvas = document.getElementById('wheel');
+            const ctx = canvas.getContext('2d');
+            const size = canvas.width;
+            const center = size / 2;
+            const sliceAngle = (2 * Math.PI) / names.length;
+
+            ctx.clearRect(0, 0, size, size);
+
+            names.forEach((name, i) => {
+                ctx.beginPath();
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.moveTo(center, center);
+                ctx.arc(center, center, center, i * sliceAngle, (i + 1) * sliceAngle);
+                ctx.fill();
+
+                // Text
+                ctx.save();
+                ctx.translate(center, center);
+                ctx.rotate(i * sliceAngle + sliceAngle / 2);
+                ctx.textAlign = "right";
+                ctx.fillStyle = "#000";
+                ctx.font = "bold 34px Outfit";
+                ctx.fillText(name, center - 40, 10);
+                ctx.restore();
+            });
+        }
+
+        let currentRotation = 0;
+        function spin() {
+            const spinBtn = document.getElementById('spinBtn');
+            spinBtn.disabled = true;
+            spinBtn.style.opacity = '0.5';
+
+            const extraSpins = 5 + Math.random() * 5;
+            const totalRotation = extraSpins * 2 * Math.PI;
+            currentRotation += totalRotation;
+
+            const wheel = document.getElementById('wheel');
+            wheel.style.transform = `rotate(${currentRotation}rad)`;
+
+            setTimeout(() => {
+                // Calculate winner
+                // Pointer is at the top (3/2 * PI)
+                const normalizedRotation = (currentRotation % (2 * Math.PI));
+                const sliceAngle = (2 * Math.PI) / names.length;
+
+                // Wheel rotates clockwise, pointer is fixed at top.
+                // At 0 rotation, slice 0 starts at 0 (3 o'clock).
+                // Top is at 1.5 * PI.
+                // Winning angle = (Top - rotation) mod 2PI
+                let winningAngle = (1.5 * Math.PI - normalizedRotation) % (2 * Math.PI);
+                if (winningAngle < 0) winningAngle += 2 * Math.PI;
+
+                const winnerIndex = Math.floor(winningAngle / sliceAngle);
+                const winner = names[winnerIndex];
+
+                document.getElementById('winnerName').innerText = winner;
+                document.getElementById('resultArea').classList.remove('hidden');
+
+                // Play logic
+                document.getElementById('winnerAction').innerText = `Phen này ${winner} "xui" rồi, bao cả hội ${formatMoney(total)} nhé! 🍻`;
+
+                spinBtn.disabled = false;
+                spinBtn.style.opacity = '1';
+
+                // Trigger fireworks or something?
+                playCelebration();
+            }, 5000);
+        }
+
+        function reset() {
+            document.getElementById('setupPhase').style.display = 'block';
+            document.getElementById('gamePhase').style.display = 'none';
+            document.getElementById('resultArea').classList.add('hidden');
+            currentRotation = 0;
+            document.getElementById('wheel').style.transform = `rotate(0deg)`;
+        }
+
+        // Simple Sound Simulation
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playCelebration() {
+            const notes = [523.25, 659.25, 783.99, 1046.50];
+            notes.forEach((freq, i) => {
+                setTimeout(() => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.5);
+                }, i * 150);
+            });
+        }
+    </script>
+</body>
+
+</html>

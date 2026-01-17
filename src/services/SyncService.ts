@@ -40,7 +40,7 @@ export const SyncService = {
         }
     },
 
-    downloadBackup: async () => {
+    downloadBackup: async (onSuccess?: () => void) => {
         try {
             const user = auth.currentUser;
             if (!user) {
@@ -49,26 +49,57 @@ export const SyncService = {
             }
 
             // 1. Fetch from Firestore
+            console.log('Fetching backup from Firestore...');
             const backupRef = doc(db, 'users', user.uid, 'backups', 'latest');
             const docSnap = await getDoc(backupRef);
 
             if (!docSnap.exists()) {
+                console.log('No backup found in Firestore');
                 Alert.alert('No Backup Found', 'You haven\'t backed up any data yet.');
                 return;
             }
 
-            const data = docSnap.data();
+            const data = docSnap.data() || {};
+            console.log('Backup data fetched keys:', Object.keys(data));
 
             // 2. Restore to SQLite
-            console.log('Restoring data...');
+            console.log('Restoring data to SQLite...');
 
-            if (data.transactions && Array.isArray(data.transactions)) {
-                for (const tx of data.transactions) {
+            // Robust array helper: Firestore sometimes stores objects with numeric keys instead of arrays
+            const getAsArray = (val: any) => {
+                if (Array.isArray(val)) return val;
+                if (val && typeof val === 'object') {
+                    const keys = Object.keys(val);
+                    if (keys.length > 0 && keys.every(k => !isNaN(parseInt(k)))) {
+                        return keys.sort((a, b) => parseInt(a) - parseInt(b)).map(k => val[k]);
+                    }
+                }
+                return null;
+            };
+
+            const transactions = getAsArray(data.transactions);
+            if (transactions) {
+                console.log(`Processing ${transactions.length} transactions...`);
+                for (const tx of transactions) {
                     let dateVal = tx.date;
+
+                    // Handle Firestore Timestamp
                     if (dateVal && typeof dateVal.toDate === 'function') {
                         dateVal = dateVal.toDate();
-                    } else if (dateVal && typeof dateVal === 'string') {
+                    }
+                    // Handle object with seconds/nanoseconds (if it lost its prototype)
+                    else if (dateVal && typeof dateVal === 'object' && 'seconds' in dateVal) {
+                        dateVal = new Date(dateVal.seconds * 1000);
+                    }
+                    // Handle ISO string
+                    else if (dateVal && typeof dateVal === 'string') {
                         dateVal = new Date(dateVal);
+                    }
+
+                    // Ensure we have a valid Date object
+                    if (!(dateVal instanceof Date) || isNaN(dateVal.getTime())) {
+                        console.warn('Invalid date found in backup for transaction:', tx.id);
+                        dateVal = new Date();
                     }
 
                     await Database.addTransaction({
@@ -78,20 +109,35 @@ export const SyncService = {
                 }
             }
 
-            if (data.categories && Array.isArray(data.categories)) {
-                for (const cat of data.categories) {
+            const categories = getAsArray(data.categories);
+            if (categories) {
+                console.log(`Processing ${categories.length} categories...`);
+                for (const cat of categories) {
                     await Database.addCategory(cat);
                 }
             }
 
-            if (data.chatHistory && Array.isArray(data.chatHistory)) {
+            const chatHistory = getAsArray(data.chatHistory);
+            if (chatHistory) {
+                console.log(`Processing ${chatHistory.length} chat messages...`);
                 await Database.clearChatHistory();
-                for (const msg of data.chatHistory) {
+                for (const msg of chatHistory) {
                     await Database.addChatMessage(msg);
                 }
             }
 
-            Alert.alert('Success', 'Data restored successfully! Please restart the app to see changes if they don\'t appear immediately.');
+            // Mark as migrated so it doesn't try to seed defaults on next restart
+            await Database.setMetadata('migrated_v1', 'true');
+            console.log('Restore completed successfully!');
+
+            Alert.alert('Success', 'Data restored successfully!', [
+                {
+                    text: 'OK',
+                    onPress: () => {
+                        if (onSuccess) onSuccess();
+                    }
+                }
+            ]);
         } catch (error: any) {
             console.error('Restore error:', error);
             Alert.alert('Restore Failed', error.message);

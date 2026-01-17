@@ -64,6 +64,9 @@ export default function AddTransactionScreen({
     const [newCatIcon, setNewCatIcon] = useState(EMOJI_LIST[0]);
     const [newCatColor, setNewCatColor] = useState(COLOR_PALETTE[0]);
 
+    // Image Modal State
+    const [viewImageModalVisible, setViewImageModalVisible] = useState(false);
+
     // Edit transaction state
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [editAmount, setEditAmount] = useState('');
@@ -77,6 +80,13 @@ export default function AddTransactionScreen({
         if (cleanNumber === '') return '';
         return cleanNumber.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
     };
+
+    // Calculate total for multi-mode
+    const totalAmount = React.useMemo(() => {
+        if (!transactionsList) return 0;
+        return transactionsList.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+    }, [transactionsList]);
+
 
     // Single transaction mode states
     const [type, setType] = useState<'income' | 'expense'>(initialData?.type || 'expense');
@@ -149,6 +159,7 @@ export default function AddTransactionScreen({
                     categoryId: finalCategoryId,
                     date: txData.date ? new Date(txData.date) : new Date(),
                     note: txData.note || '',
+                    imageUri: initialData?.imageUri // Link image if exists
                 };
                 console.log(`Created transaction ${index + 1}:`, tx);
                 return tx;
@@ -342,6 +353,21 @@ export default function AddTransactionScreen({
                                             <Text style={styles.multiSubtitle}>
                                                 Chạm vào giao dịch để chỉnh sửa hoặc 🗑️ để xóa
                                             </Text>
+
+                                            <View style={styles.totalBlock}>
+                                                <Text style={styles.totalLabel}>TỔNG CỘNG:</Text>
+                                                <Text style={styles.totalValue}>{formatNumber(totalAmount)}₫</Text>
+                                            </View>
+
+                                            {initialData?.imageUri && (
+                                                <TouchableOpacity
+                                                    style={styles.viewImageBtn}
+                                                    onPress={() => setViewImageModalVisible(true)}
+                                                >
+                                                    <Ionicons name="receipt-outline" size={20} color="#4F46E5" />
+                                                    <Text style={styles.viewImageText}>Xem hóa đơn gốc</Text>
+                                                </TouchableOpacity>
+                                            )}
                                         </View>
 
                                         {transactionsList.map((tx, index) => {
@@ -416,7 +442,9 @@ export default function AddTransactionScreen({
 
                                         {imageUri && (
                                             <View style={styles.imagePreviewContainer}>
-                                                <Image source={{ uri: imageUri }} style={styles.receiptPreview} />
+                                                <TouchableOpacity onPress={() => setViewImageModalVisible(true)}>
+                                                    <Image source={{ uri: imageUri }} style={styles.receiptPreview} />
+                                                </TouchableOpacity>
                                                 <TouchableOpacity
                                                     style={styles.removeImageBtn}
                                                     onPress={() => setImageUri(null)}
@@ -698,6 +726,30 @@ export default function AddTransactionScreen({
                     </TouchableWithoutFeedback>
                 </KeyboardAvoidingView>
             </Modal>
+
+            {/* View Image Modal */}
+            <Modal
+                visible={viewImageModalVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setViewImageModalVisible(false)}
+            >
+                <View style={styles.imageModalOverlay}>
+                    <View style={styles.imageModalContent}>
+                        <TouchableOpacity
+                            style={styles.closeImageBtn}
+                            onPress={() => setViewImageModalVisible(false)}
+                        >
+                            <Ionicons name="close-circle" size={36} color="#FFF" />
+                        </TouchableOpacity>
+                        <Image
+                            source={{ uri: initialData?.imageUri }}
+                            style={styles.fullImage}
+                            resizeMode="contain"
+                        />
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -798,9 +850,66 @@ const styles = StyleSheet.create({
     currencySymbol: {
         fontSize: 28,
         color: '#D1D5DB',
-        marginRight: 8,
-        fontWeight: 'bold',
-        marginTop: 5,
+    },
+    totalBlock: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#EEF2FF',
+        padding: 16,
+        borderRadius: 16,
+        marginTop: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#E0E7FF'
+    },
+    totalLabel: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#4F46E5',
+    },
+    totalValue: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#4F46E5',
+    },
+    viewImageBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 12,
+        backgroundColor: '#F3F4F6',
+        borderRadius: 12,
+        marginBottom: 8,
+    },
+    viewImageText: {
+        marginLeft: 8,
+        color: '#4F46E5',
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    imageModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    imageModalContent: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    fullImage: {
+        width: '90%',
+        height: '80%',
+        borderRadius: 8,
+    },
+    closeImageBtn: {
+        position: 'absolute',
+        top: 50,
+        right: 20,
+        zIndex: 10,
     },
     amountInput: {
         fontSize: 56,

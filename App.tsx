@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StatusBar, useColorScheme, View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -45,6 +45,153 @@ const CustomTabBarButton = ({ children, onPress }: any) => (
       <Ionicons name="add" size={38} color="#FFF" />
     </View>
   </TouchableOpacity>
+);
+
+const TabNavigator = ({
+  isDark,
+  language,
+  transactions,
+  categories,
+  chatMessages,
+  handleSetChatMessages,
+  selectedPersonalityId,
+  setSelectedPersonalityId,
+  theme,
+  handleAddTransaction,
+  handleUpdateTransaction,
+  handleDeleteTransaction
+}: any) => (
+  <Tab.Navigator
+    screenOptions={{
+      headerShown: false,
+      tabBarStyle: {
+        backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+        borderTopColor: isDark ? '#374151' : '#F3F4F6',
+        height: 80,
+        paddingBottom: 20,
+        paddingTop: 10,
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        elevation: 0,
+        borderTopWidth: 1,
+      },
+      tabBarActiveTintColor: '#10b981',
+      tabBarInactiveTintColor: isDark ? '#9CA3AF' : '#9CA3AF',
+      tabBarShowLabel: true,
+      tabBarLabelStyle: {
+        fontSize: 10,
+        fontWeight: '600',
+        marginTop: 4,
+      }
+    }}
+  >
+    <Tab.Screen
+      name="Calendar"
+      options={{
+        tabBarLabel: language === 'Tiếng Việt' ? 'Tổng quan' : 'Overview',
+        tabBarIcon: ({ color }) => (
+          <Ionicons name="home-outline" color={color} size={24} />
+        ),
+      }}
+    >
+      {({ navigation }) => (
+        <CalendarScreen
+          transactions={transactions}
+          categories={categories}
+          onAddTransaction={handleAddTransaction}
+          onUpdateTransaction={handleUpdateTransaction}
+          onDeleteTransaction={handleDeleteTransaction}
+          navigation={navigation}
+          language={language}
+          theme={theme}
+        />
+      )}
+    </Tab.Screen>
+
+    <Tab.Screen
+      name="Statistics"
+      options={{
+        tabBarLabel: language === 'Tiếng Việt' ? 'Thống kê' : 'Stats',
+        tabBarIcon: ({ color }) => (
+          <Ionicons name="stats-chart-outline" color={color} size={24} />
+        ),
+      }}
+    >
+      {({ navigation }) => (
+        <StatisticsScreen
+          transactions={transactions}
+          categories={categories}
+          onUpdateTransaction={handleUpdateTransaction}
+          onDeleteTransaction={handleDeleteTransaction}
+          navigation={navigation}
+          language={language}
+          theme={theme}
+        />
+      )}
+    </Tab.Screen>
+
+    <Tab.Screen
+      name="Add"
+      component={View}
+      options={{
+        tabBarButton: (props) => (
+          <CustomTabBarButton {...props} />
+        ),
+        tabBarLabel: () => null
+      }}
+      listeners={({ navigation }) => ({
+        tabPress: (e) => {
+          e.preventDefault();
+          navigation.navigate('AddTransaction');
+        },
+      })}
+    />
+
+    <Tab.Screen
+      name="Analysis"
+      options={{
+        tabBarLabel: language === 'Tiếng Việt' ? 'Kế hoạch' : 'Planner',
+        tabBarIcon: ({ color }) => (
+          <Ionicons name="bulb-outline" color={color} size={24} />
+        ),
+      }}
+    >
+      {({ navigation }) => (
+        <AnalysisScreen
+          transactions={transactions}
+          language={language}
+          theme={theme}
+          navigation={navigation}
+        />
+      )}
+    </Tab.Screen>
+
+    <Tab.Screen
+      name="AIChat"
+      options={{
+        tabBarLabel: language === 'Tiếng Việt' ? 'Mentor' : 'AI Chat',
+        tabBarIcon: ({ color }) => (
+          <Ionicons name="chatbubbles-outline" color={color} size={24} />
+        ),
+      }}
+    >
+      {({ navigation, route }) => (
+        <ChatScreen
+          transactions={transactions}
+          messages={chatMessages}
+          setMessages={handleSetChatMessages}
+          selectedPersonalityId={selectedPersonalityId}
+          setSelectedPersonalityId={setSelectedPersonalityId}
+          language={language}
+          theme={theme}
+          navigation={navigation}
+          route={route}
+        />
+      )}
+    </Tab.Screen>
+  </Tab.Navigator>
 );
 
 export default function App() {
@@ -175,146 +322,30 @@ export default function App() {
   const navigationTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
   const isDark = theme === 'dark';
 
-  const TabNavigator = () => (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
-          borderTopColor: isDark ? '#374151' : '#F3F4F6',
-          height: 80,
-          paddingBottom: 20,
-          paddingTop: 10,
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          elevation: 0,
-          borderTopWidth: 1,
-        },
-        tabBarActiveTintColor: '#10b981',
-        tabBarInactiveTintColor: isDark ? '#9CA3AF' : '#9CA3AF',
-        tabBarShowLabel: true,
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '600',
-          marginTop: 4,
-        }
-      }}
-    >
-      <Tab.Screen
-        name="Calendar"
-        options={{
-          tabBarLabel: language === 'Tiếng Việt' ? 'Tổng quan' : 'Overview',
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="home-outline" color={color} size={24} />
-          ),
-        }}
-      >
-        {({ navigation }) => (
-          <CalendarScreen
-            transactions={transactions}
-            categories={categories}
-            onAddTransaction={handleAddTransaction}
-            onUpdateTransaction={handleUpdateTransaction}
-            onDeleteTransaction={handleDeleteTransaction}
-            navigation={navigation}
-            language={language}
-            theme={theme}
-          />
-        )}
-      </Tab.Screen>
-
-      <Tab.Screen
-        name="Statistics"
-        options={{
-          tabBarLabel: language === 'Tiếng Việt' ? 'Thống kê' : 'Stats',
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="stats-chart-outline" color={color} size={24} />
-          ),
-        }}
-      >
-        {({ navigation }) => (
-          <StatisticsScreen
-            transactions={transactions}
-            categories={categories}
-            onUpdateTransaction={handleUpdateTransaction}
-            onDeleteTransaction={handleDeleteTransaction}
-            navigation={navigation}
-            language={language}
-            theme={theme}
-          />
-        )}
-      </Tab.Screen>
-
-      <Tab.Screen
-        name="Add"
-        component={View}
-        options={{
-          tabBarButton: (props) => (
-            <CustomTabBarButton {...props} />
-          ),
-          tabBarLabel: () => null
-        }}
-        listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            e.preventDefault();
-            navigation.navigate('AddTransaction');
-          },
-        })}
-      />
-
-      <Tab.Screen
-        name="Analysis"
-        options={{
-          tabBarLabel: language === 'Tiếng Việt' ? 'Kế hoạch' : 'Planner',
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="bulb-outline" color={color} size={24} />
-          ),
-        }}
-      >
-        {({ navigation }) => (
-          <AnalysisScreen
-            transactions={transactions}
-            language={language}
-            theme={theme}
-            navigation={navigation}
-          />
-        )}
-      </Tab.Screen>
-
-      <Tab.Screen
-        name="AIChat"
-        options={{
-          tabBarLabel: language === 'Tiếng Việt' ? 'Mentor' : 'AI Chat',
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="chatbubbles-outline" color={color} size={24} />
-          ),
-        }}
-      >
-        {({ navigation, route }) => (
-          <ChatScreen
-            transactions={transactions}
-            messages={chatMessages}
-            setMessages={handleSetChatMessages}
-            selectedPersonalityId={selectedPersonalityId}
-            setSelectedPersonalityId={setSelectedPersonalityId}
-            language={language}
-            theme={theme}
-            navigation={navigation}
-            route={route}
-          />
-        )}
-      </Tab.Screen>
-    </Tab.Navigator>
-  );
-
   return (
     <SafeAreaProvider>
       <NavigationContainer theme={navigationTheme}>
         <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="MainTabs" component={TabNavigator} />
+          <Stack.Screen name="MainTabs">
+            {(props) => (
+              <TabNavigator
+                {...props}
+                isDark={isDark}
+                language={language}
+                transactions={transactions}
+                categories={categories}
+                chatMessages={chatMessages}
+                handleSetChatMessages={handleSetChatMessages}
+                selectedPersonalityId={selectedPersonalityId}
+                setSelectedPersonalityId={setSelectedPersonalityId}
+                theme={theme}
+                handleAddTransaction={handleAddTransaction}
+                handleUpdateTransaction={handleUpdateTransaction}
+                handleDeleteTransaction={handleDeleteTransaction}
+              />
+            )}
+          </Stack.Screen>
           <Stack.Screen
             name="SmartInput"
             component={SmartInputScreen}
@@ -347,6 +378,7 @@ export default function App() {
                 onAddCategory={handleAddCategory}
                 onUpdateCategory={handleUpdateCategory}
                 onDeleteCategory={handleDeleteCategory}
+                onRestore={loadData}
               />
             )}
           </Stack.Screen>

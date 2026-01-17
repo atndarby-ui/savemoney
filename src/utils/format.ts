@@ -3,13 +3,16 @@ export const formatCurrency = (amount: number): string => {
 };
 
 export const formatCompactCurrency = (amount: number): string => {
-    if (amount >= 1000000) {
-        return `${(amount / 1000000).toFixed(1)}tr`;
+    const absAmount = Math.abs(amount);
+    const sign = amount < 0 ? '-' : '';
+
+    if (absAmount >= 1000000) {
+        return `${sign}${(absAmount / 1000000).toFixed(1)}tr`;
     }
-    if (amount >= 1000) {
-        return `${Math.floor(amount / 1000)}k`;
+    if (absAmount >= 1000) {
+        return `${sign}${Math.floor(absAmount / 1000)}k`;
     }
-    return amount.toString();
+    return formatCurrency(amount);
 };
 
 export const isSameDay = (date1: Date, date2: Date): boolean => {

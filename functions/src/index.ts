@@ -50,7 +50,7 @@ export const analyzeFinancialHealth = functions.https.onCall(async (data, contex
         }
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
         const prompt = `
             Analyze the following financial transactions for a user (Currency: ${currency}):
@@ -77,5 +77,48 @@ export const analyzeFinancialHealth = functions.https.onCall(async (data, contex
     } catch (error) {
         console.error("Analysis error:", error);
         throw new functions.https.HttpsError('internal', 'Failed to analyze data.');
+    }
+});
+
+// 4. Register Mini App (Callable for deploying new tools)
+export const registerMiniApp = functions.https.onCall(async (data, context) => {
+    // Optional: Check if user is admin or authenticated
+    // if (!context.auth) ...
+
+    const { title, icon, description, url, htmlContent } = data;
+
+    if (!title) {
+        throw new functions.https.HttpsError('invalid-argument', 'Title is required');
+    }
+    if (!url && !htmlContent) {
+        throw new functions.https.HttpsError('invalid-argument', 'Either URL or HTML Content is required');
+    }
+
+    try {
+        const slug = title.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        const appRef = admin.firestore().collection('mini_apps').doc(slug);
+
+        const appData = {
+            title,
+            icon: icon || '🎮',
+            description: description || '',
+            url: url || null,
+            htmlContent: htmlContent || null,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        // Use set with merge to update if exists or create if not
+        await appRef.set(appData, { merge: true });
+
+        // If it's a new document, add createdAt
+        const doc = await appRef.get();
+        if (!doc.data()?.createdAt) {
+            await appRef.update({ createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        }
+
+        return { success: true, id: slug };
+    } catch (error) {
+        console.error("Error registering mini app:", error);
+        throw new functions.https.HttpsError('internal', 'Failed to register mini app');
     }
 });
