@@ -10,7 +10,16 @@ const KEY_USE_BIOMETRICS = 'security_use_biometrics';
 const KEY_HINT_QUESTION = 'security_hint_question';
 const KEY_HINT_ANSWER = 'security_hint_answer';
 
+let ignoreAppLock = false;
+
 export const SecurityService = {
+    setIgnoreAppLock: (ignore: boolean) => {
+        ignoreAppLock = ignore;
+    },
+    shouldIgnoreAppLock: () => {
+        return ignoreAppLock;
+    },
+
     // Check if hardware supports biometrics
     hasHardwareAsync: async () => {
         try {
@@ -39,6 +48,7 @@ export const SecurityService = {
                 await SecureStore.setItemAsync(KEY_IS_ENABLED, 'true');
             } else {
                 await SecureStore.deleteItemAsync(KEY_IS_ENABLED);
+                // Do NOT delete other keys to persist settings
             }
         } catch (e) {
             console.error('[SecurityService] SecureStore error:', e);
@@ -52,6 +62,21 @@ export const SecurityService = {
         } catch (e) {
             return false;
         }
+    },
+
+    hasPassword: async (): Promise<boolean> => {
+        try {
+            const pw = await SecureStore.getItemAsync(KEY_PASSWORD);
+            return !!pw;
+        } catch (e) { return false; }
+    },
+
+    isPasswordNumeric: async (): Promise<boolean> => {
+        try {
+            const pw = await SecureStore.getItemAsync(KEY_PASSWORD);
+            if (!pw) return false;
+            return /^\d+$/.test(pw);
+        } catch (e) { return false; }
     },
 
     // Password Management
@@ -120,6 +145,14 @@ export const SecurityService = {
 
     getHintQuestion: async () => {
         return await SecureStore.getItemAsync(KEY_HINT_QUESTION);
+    },
+
+    getHintAnswer: async () => {
+        return await SecureStore.getItemAsync(KEY_HINT_ANSWER);
+    },
+
+    hasHint: async () => {
+        return !!(await SecureStore.getItemAsync(KEY_HINT_QUESTION));
     },
 
     checkHintAnswer: async (input: string) => {

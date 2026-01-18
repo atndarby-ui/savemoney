@@ -8,7 +8,9 @@ import {
     StatusBar,
     TextInput,
     Alert,
-    Platform
+    Platform,
+    Modal,
+    Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SecurityService } from '../services/SecurityService';
@@ -20,18 +22,29 @@ export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
     const [isBiometricAvailable, setIsBiometricAvailable] = useState(false);
     const [showHint, setShowHint] = useState(false);
     const [hintQuestion, setHintQuestion] = useState<string | null>(null);
+    const [showHintInput, setShowHintInput] = useState(false);
+    const [hintAnswerInput, setHintAnswerInput] = useState('');
+
+    const [keyboardType, setKeyboardType] = useState<'default' | 'numeric' | 'number-pad'>('default');
 
     useEffect(() => {
+        checkPasswordType();
         checkBiometrics();
         loadHint();
     }, []);
+
+    const checkPasswordType = async () => {
+        const isNum = await SecurityService.isPasswordNumeric();
+        setKeyboardType(isNum ? 'number-pad' : 'default');
+    };
 
     // Auto-prompt biometrics if enabled
     useEffect(() => {
         (async () => {
             const bioEnabled = await SecurityService.isBiometricsEnabled();
             if (bioEnabled) {
-                handleBiometricAuth();
+                // Small delay to ensure UI is ready or simply just call it
+                setTimeout(() => handleBiometricAuth(), 500);
             }
         })();
     }, []);
@@ -48,13 +61,7 @@ export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
     };
 
     const handleNumberPress = (num: string) => {
-        if (password.length < 6) { // Assume 6 digit pin for now, or variable length? 
-            // User might have alphanumeric password. 
-            // But typically "App Lock" uses PIN pad or standard keyboard.
-            // Based on user request "password", it could be text.
-            // Let's support text input but start with a PIN pad styled view if it looks like digits, 
-            // or just a TextInput for maximum flexibility.
-            // Since user said "pass", I'll use a TextInput but styled nicely.
+        if (password.length < 6) {
             setPassword(prev => prev + num);
             setError('');
         }
@@ -72,13 +79,8 @@ export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
         } else {
             setError('Incorrect password');
             setPassword('');
-            // Trigger haptic?
         }
     };
-
-    // If password changes and length matches standard length (e.g. 4 or 6), maybe auto submit?
-    // But we don't know the user's password length preference yet. 
-    // We'll trust the "Go" button or explicit submit.
 
     const handleBiometricAuth = async () => {
         const success = await SecurityService.authenticateBiometric();
@@ -92,7 +94,11 @@ export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
             <StatusBar barStyle="light-content" />
             <View style={styles.content}>
                 <View style={styles.iconContainer}>
-                    <Ionicons name="lock-closed" size={48} color={COLORS.primary || '#10b981'} />
+                    <Image
+                        source={require('../../assets/icon.png')}
+                        style={{ width: 80, height: 80, borderRadius: 20 }}
+                        resizeMode="contain"
+                    />
                 </View>
                 <Text style={styles.title}>Welcome Back</Text>
                 <Text style={styles.subtitle}>Enter your password to continue</Text>
@@ -108,6 +114,7 @@ export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
                         setError('');
                     }}
                     autoFocus={false}
+                    keyboardType={keyboardType}
                 />
 
                 {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -119,18 +126,69 @@ export default function LockScreen({ onUnlock }: { onUnlock: () => void }) {
                 <View style={styles.footer}>
                     {isBiometricAvailable && (
                         <TouchableOpacity style={styles.footerButton} onPress={handleBiometricAuth}>
-                            <Ionicons name="finger-print-outline" size={32} color={COLORS.primary || '#10b981'} />
+                            <Ionicons name="finger-print-outline" size={32} color={'#10b981'} />
                             <Text style={styles.footerText}>Use Biometrics</Text>
                         </TouchableOpacity>
                     )}
 
                     {hintQuestion && (
-                        <TouchableOpacity style={styles.footerButton} onPress={() => Alert.alert('Password Hint', hintQuestion)}>
-                            <Ionicons name="help-circle-outline" size={32} color={COLORS.primary || '#10b981'} />
+                        <TouchableOpacity style={styles.footerButton} onPress={() => setShowHintInput(true)}>
+                            <Ionicons name="help-circle-outline" size={32} color={'#10b981'} />
                             <Text style={styles.footerText}>Hint</Text>
                         </TouchableOpacity>
                     )}
                 </View>
+
+                {/* Hint Input Modal Overlay */}
+                <Modal
+                    visible={showHintInput}
+                    transparent
+                    animationType="fade"
+                    onRequestClose={() => setShowHintInput(false)}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContent}>
+                            <Text style={styles.modalTitle}>Password Recovery</Text>
+                            <Text style={styles.modalSubtitle}>{hintQuestion}</Text>
+
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Answer"
+                                placeholderTextColor="#999"
+                                value={hintAnswerInput}
+                                onChangeText={setHintAnswerInput}
+                                autoFocus
+                            />
+
+                            <View style={styles.modalButtons}>
+                                <TouchableOpacity
+                                    style={[styles.modalButton, { backgroundColor: '#333' }]}
+                                    onPress={() => {
+                                        setShowHintInput(false);
+                                        setHintAnswerInput('');
+                                    }}
+                                >
+                                    <Text style={styles.buttonText}>Cancel</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[styles.modalButton, { backgroundColor: '#10b981' }]}
+                                    onPress={async () => {
+                                        const valid = await SecurityService.checkHintAnswer(hintAnswerInput);
+                                        if (valid) {
+                                            setShowHintInput(false);
+                                            onUnlock();
+                                        } else {
+                                            Alert.alert('Error', 'Incorrect answer');
+                                        }
+                                    }}
+                                >
+                                    <Text style={styles.buttonText}>Unlock</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
             </View>
         </SafeAreaView>
     );
@@ -152,7 +210,6 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: 'rgba(16, 185, 129, 0.1)', // Primary opacity
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -182,7 +239,7 @@ const styles = StyleSheet.create({
     button: {
         width: '100%',
         height: 50,
-        backgroundColor: COLORS.primary || '#10b981',
+        backgroundColor: '#10b981',
         borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
@@ -211,5 +268,54 @@ const styles = StyleSheet.create({
         color: '#999',
         fontSize: 12,
         marginTop: 5
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        width: '85%',
+        backgroundColor: '#1a1a1a',
+        borderRadius: 20,
+        padding: 24,
+        alignItems: 'center',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#fff',
+        marginBottom: 8,
+    },
+    modalSubtitle: {
+        fontSize: 16,
+        color: '#ccc',
+        marginBottom: 24,
+        textAlign: 'center',
+    },
+    modalInput: {
+        width: '100%',
+        height: 50,
+        backgroundColor: '#333',
+        borderRadius: 12,
+        paddingHorizontal: 15,
+        color: '#fff',
+        fontSize: 16,
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: '#444',
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        gap: 12,
+        width: '100%',
+    },
+    modalButton: {
+        flex: 1,
+        height: 48,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
     }
 });

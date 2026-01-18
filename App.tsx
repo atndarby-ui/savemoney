@@ -228,6 +228,11 @@ function AppContent() {
 
   const handleAppStateChange = async (nextAppState: AppStateStatus) => {
     if (nextAppState === 'background') {
+      if (SecurityService.shouldIgnoreAppLock()) {
+        console.log('Ignoring app lock for this background transition');
+        SecurityService.setIgnoreAppLock(false);
+        return;
+      }
       const enabled = await SecurityService.isEnabled();
       if (enabled) {
         setIsLocked(true);

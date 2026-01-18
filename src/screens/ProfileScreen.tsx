@@ -658,13 +658,17 @@ export default function ProfileScreen({
         };
     }, []);
 
+    const [hasSavedPassword, setHasSavedPassword] = useState(false);
+
     useEffect(() => {
         checkSecurityStatus();
     }, [isSecurityModalVisible]);
 
     const checkSecurityStatus = async () => {
         const enabled = await SecurityService.isEnabled();
+        const hasPass = await SecurityService.hasPassword();
         setIsSecurityEnabled(enabled);
+        setHasSavedPassword(hasPass);
     };
 
     const handleResetData = () => {
@@ -742,6 +746,7 @@ export default function ProfileScreen({
     };
 
     const pickImage = async () => {
+        SecurityService.setIgnoreAppLock(true);
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
             allowsEditing: true,
@@ -1207,6 +1212,7 @@ export default function ProfileScreen({
     };
 
     const pickGoalImage = async (setter: (uri: string) => void) => {
+        SecurityService.setIgnoreAppLock(true);
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
             allowsEditing: true,
@@ -1256,6 +1262,7 @@ export default function ProfileScreen({
 
     const pickCustomSound = async () => {
         try {
+            SecurityService.setIgnoreAppLock(true);
             // Dynamic import to prevent crash at startup
             const DocumentPicker = require('expo-document-picker');
 
@@ -3239,7 +3246,8 @@ export default function ProfileScreen({
                             {t.manageSecurity}
                         </ThemedText>
 
-                        {!isSecurityEnabled && (
+                        {/* Security Setup / Re-enable */}
+                        {!isSecurityEnabled && !hasSavedPassword && (
                             <View>
                                 <ThemedText style={styles.inputLabel}>{t.newPassword}</ThemedText>
                                 <TextInput
@@ -3295,6 +3303,77 @@ export default function ProfileScreen({
                             </View>
                         )}
 
+                        {!isSecurityEnabled && hasSavedPassword && (
+                            <View style={{ gap: 16 }}>
+                                <View style={{ alignItems: 'center', marginVertical: 20 }}>
+                                    <Ionicons name="lock-closed" size={48} color={colors.primary} />
+                                    <ThemedText style={{ textAlign: 'center', marginTop: 12 }}>
+                                        {language === 'Tiếng Việt'
+                                            ? 'Bạn đã cài đặt mật khẩu trước đó. Bạn có muốn kích hoạt lại không?'
+                                            : 'You have a saved password. Do you want to re-enable it?'}
+                                    </ThemedText>
+                                </View>
+
+                                <TouchableOpacity
+                                    style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                                    onPress={async () => {
+                                        await SecurityService.setEnabled(true);
+                                        await checkSecurityStatus();
+                                        setIsSecurityModalVisible(false);
+                                        Alert.alert('Success', 'App Lock Enabled');
+                                    }}
+                                >
+                                    <Text style={styles.saveButtonText}>{t.securityEnabled}</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[styles.modalButton, { backgroundColor: colors.surface }]}
+                                    onPress={async () => {
+                                        // Reset/Clear old password logic? 
+                                        // Ideally we ask for old pass before clearing, but if they forgot it, 
+                                        // they can't clear it here without entering it.
+                                        // For now, let's allow "Set New Password" which effectively overwrites.
+                                        // But wait, the Setup UI appears only if !hasSavedPassword.
+                                        // So we need to clear saved password first.
+
+                                        Alert.alert(
+                                            t.resetData,
+                                            language === 'Tiếng Việt' ? 'Thiết lập lại mật khẩu mới?' : 'Setup new password?',
+                                            [
+                                                { text: t.cancel, style: 'cancel' },
+                                                {
+                                                    text: 'OK',
+                                                    onPress: async () => {
+                                                        // We interpret this as "I want to overwrite old settings"
+                                                        // SecurityService doesn't have "clearPassword" explicit public for this context needed?
+                                                        // We can just set hasSavedPassword to false strictly for UI.
+                                                        // But SecurityService.hasPassword() returns true.
+                                                        // So we should probably allow overwriting or force them to clear data?
+                                                        // To keep it simple as requested: "set new pass".
+                                                        // Use a temporary state or just clear plain keys?
+                                                        // Let's implement a quick clear.
+                                                        await SecurityService.clearSecuritySettings(); // Full reset of security
+                                                        await checkSecurityStatus(); // hasSavedPassword -> false
+                                                    }
+                                                }
+                                            ]
+                                        );
+                                    }}
+                                >
+                                    <Text style={[styles.saveButtonText, { color: colors.text }]}>
+                                        {language === 'Tiếng Việt' ? 'Đặt mật khẩu mới' : 'Reset Password'}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[styles.modalButton, styles.cancelButton]}
+                                    onPress={() => setIsSecurityModalVisible(false)}
+                                >
+                                    <Text style={styles.cancelButtonText}>{t.cancel}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
                         {isSecurityEnabled && securityStep === 'menu' && (
                             <View style={{ gap: 12 }}>
                                 <MenuItem
@@ -3319,7 +3398,13 @@ export default function ProfileScreen({
                                 <MenuItem
                                     icon="help-buoy-outline"
                                     label={t.hintTitle}
-                                    onPress={() => setSecurityStep('hint')}
+                                    onPress={async () => {
+                                        const q = await SecurityService.getHintQuestion();
+                                        const a = await SecurityService.getHintAnswer();
+                                        if (q) setHintQInput(q);
+                                        if (a) setHintAInput(a);
+                                        setSecurityStep('hint');
+                                    }}
                                 />
 
                                 <TouchableOpacity
