@@ -17,6 +17,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 import { CATEGORIES } from '../constants';
+import { SecurityService } from '../services/SecurityService';
 
 interface SmartInputScreenProps {
     navigation: any;
@@ -245,6 +246,7 @@ export default function SmartInputScreen({ navigation }: SmartInputScreenProps) 
                 return;
             }
 
+            SecurityService.setIgnoreAppLock(true);
             const result = await ImagePicker.launchCameraAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: false, // SKIP CROP - ONE STEP ONLY!

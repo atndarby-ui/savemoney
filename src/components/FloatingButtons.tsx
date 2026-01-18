@@ -13,6 +13,7 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { CATEGORIES } from '../constants';
+import { SecurityService } from '../services/SecurityService';
 
 interface FloatingButtonsProps {
     navigation: any;
@@ -266,6 +267,7 @@ export default function FloatingButtons({ navigation, theme = 'light' }: Floatin
                 return;
             }
 
+            SecurityService.setIgnoreAppLock(true);
             const result = await ImagePicker.launchCameraAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: false,

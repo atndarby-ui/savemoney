@@ -3,7 +3,7 @@ import { StatusBar, useColorScheme, View, TouchableOpacity, StyleSheet, Text, Ap
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createStackNavigator, CardStyleInterpolators, TransitionSpecs, StackNavigationOptions } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -22,7 +22,45 @@ import LockScreen from './src/screens/LockScreen';
 import { SecurityService } from './src/services/SecurityService';
 
 const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
+
+const PremiumTransition: StackNavigationOptions = {
+  gestureDirection: 'horizontal',
+  transitionSpec: {
+    open: TransitionSpecs.TransitionIOSSpec,
+    close: TransitionSpecs.TransitionIOSSpec,
+  },
+  cardStyleInterpolator: ({ current, next, layouts }: any) => {
+    return {
+      cardStyle: {
+        transform: [
+          {
+            translateX: current.progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [layouts.screen.width, 0],
+            }),
+          },
+          {
+            scale: current.progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.95, 1],
+            }),
+          },
+        ],
+        opacity: current.progress.interpolate({
+          inputRange: [0, 0.5, 1],
+          outputRange: [0, 0.5, 1],
+        }),
+      },
+      overlayStyle: {
+        opacity: current.progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 0.5],
+        }),
+      },
+    };
+  },
+};
 
 // Custom Button Component for the middle tab
 const CustomTabBarButton = ({ children, onPress, primaryColor }: any) => (
@@ -227,10 +265,18 @@ function AppContent() {
   };
 
   const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+    if (nextAppState === 'active') {
+      // Returned to app. If we were ignoring lock, valid session resumed.
+      // Reset flag so next backgrounding locks properly.
+      if (SecurityService.shouldIgnoreAppLock()) {
+        SecurityService.setIgnoreAppLock(false);
+      }
+    }
+
     if (nextAppState === 'background') {
       if (SecurityService.shouldIgnoreAppLock()) {
         console.log('Ignoring app lock for this background transition');
-        SecurityService.setIgnoreAppLock(false);
+        // Do NOT reset here. Reset when coming back to active.
         return;
       }
       const enabled = await SecurityService.isEnabled();
@@ -354,7 +400,12 @@ function AppContent() {
     <SafeAreaProvider>
       <NavigationContainer theme={navigationTheme}>
         <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator
+          screenOptions={{
+            headerShown: false,
+            ...PremiumTransition
+          }}
+        >
           <Stack.Screen name="MainTabs">
             {(props) => (
               <TabNavigator
@@ -378,11 +429,21 @@ function AppContent() {
           <Stack.Screen
             name="SmartInput"
             component={SmartInputScreen}
-            options={{ presentation: 'transparentModal', animation: 'slide_from_bottom' }}
+            options={{
+              presentation: 'transparentModal',
+              cardStyle: { backgroundColor: 'transparent' },
+              cardStyleInterpolator: CardStyleInterpolators.forModalPresentationIOS,
+            }}
           />
           <Stack.Screen
             name="AddTransaction"
-            options={{ presentation: 'transparentModal', animation: 'slide_from_bottom' }}
+            options={{
+              presentation: 'transparentModal',
+              cardStyle: { backgroundColor: 'transparent' },
+              cardStyleInterpolator: CardStyleInterpolators.forModalPresentationIOS,
+              gestureEnabled: true,
+              gestureDirection: 'vertical',
+            }}
           >
             {(props) => (
               <AddTransactionScreen

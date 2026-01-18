@@ -16,6 +16,7 @@ import {
     Linking,
     AppState
 } from 'react-native';
+import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutLeft, ZoomIn, ZoomOut } from 'react-native-reanimated';
 import CalendarScreen from './CalendarScreen';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1477,7 +1478,7 @@ export default function ProfileScreen({
                 contentContainerStyle={styles.content}
             >
                 {activeTab === 'profile' && (
-                    <>
+                    <Animated.View entering={FadeIn.duration(300)} style={{ flex: 1 }}>
                         {/* Profile Header */}
                         <ThemedView variant="surface" style={[styles.header, { borderColor: colors.border }]}>
                             <View style={styles.avatarContainer}>
@@ -1663,11 +1664,11 @@ export default function ProfileScreen({
                                 <Text style={styles.logoutText}>{t.logout}</Text>
                             </TouchableOpacity>
                         )}
-                    </>
+                    </Animated.View>
                 )}
 
                 {activeTab === 'goals' && (
-                    <View style={styles.categoriesContainer}>
+                    <Animated.View entering={FadeIn.duration(300)} style={styles.categoriesContainer}>
                         {/* New 4-Card Creation Row */}
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
                             {[
@@ -1821,11 +1822,11 @@ export default function ProfileScreen({
                                 </View>
                             );
                         })}
-                    </View>
+                    </Animated.View>
                 )}
 
                 {activeTab === 'tools' && (
-                    <View style={styles.categoriesContainer}>
+                    <Animated.View entering={FadeIn.duration(300)} style={styles.categoriesContainer}>
                         {/* Native Tools */}
                         <View style={styles.section}>
                             <ThemedText variant="caption" style={styles.sectionTitle}>{t.utilityTools}</ThemedText>
@@ -1893,11 +1894,10 @@ export default function ProfileScreen({
                                 </ThemedText>
                             )}
                         </View>
-                    </View>
+                    </Animated.View>
                 )}
-
                 {activeTab === 'categories' && (
-                    <View style={styles.categoriesContainer}>
+                    <Animated.View entering={FadeIn.duration(300)} style={styles.categoriesContainer}>
                         <TouchableOpacity
                             style={[styles.addCategoryBtn, { backgroundColor: isDark ? 'rgba(236, 72, 153, 0.1)' : '#FCE7F3', borderColor: colors.primary }]}
                             onPress={() => handleCategoryAction()}
@@ -1948,12 +1948,13 @@ export default function ProfileScreen({
                                 </View>
                             ))}
                         </ThemedView>
-                    </View>
+                    </Animated.View>
                 )}
-            </ScrollView>
+
+            </ScrollView >
 
             {/* Auth Modal */}
-            <Modal
+            < Modal
                 visible={isAuthModalVisible}
                 transparent
                 animationType="slide"
@@ -2005,10 +2006,10 @@ export default function ProfileScreen({
                         </TouchableOpacity>
                     </View>
                 </View>
-            </Modal>
+            </Modal >
 
             {/* Category Edit Modal */}
-            <Modal
+            < Modal
                 visible={isEditingCategory}
                 transparent
                 animationType="fade"
@@ -2065,11 +2066,11 @@ export default function ProfileScreen({
                         </View>
                     </View>
                 </View>
-            </Modal>
+            </Modal >
 
 
             {/* Goal Modal */}
-            <Modal
+            < Modal
                 visible={isGoalModalVisible}
                 transparent
                 animationType="slide"
@@ -2685,10 +2686,10 @@ export default function ProfileScreen({
                         </View>
                     </View>
                 </View>
-            </Modal>
+            </Modal >
 
             {/* Notification Settings Modal */}
-            <Modal
+            < Modal
                 visible={isNotifSettingsVisible}
                 transparent
                 animationType="fade"
@@ -2763,10 +2764,10 @@ export default function ProfileScreen({
                         </View>
                     </View>
                 </View>
-            </Modal>
+            </Modal >
 
             {/* Compound Interest Modal */}
-            <Modal
+            < Modal
                 visible={isCompoundModalVisible}
                 transparent
                 animationType="slide"
@@ -2874,10 +2875,10 @@ export default function ProfileScreen({
                         </View>
                     </View>
                 </KeyboardAvoidingView>
-            </Modal>
+            </Modal >
 
             {/* Edit Profile Modal */}
-            <Modal
+            < Modal
                 visible={isEditingInfo}
                 transparent
                 animationType="slide"
@@ -2926,10 +2927,10 @@ export default function ProfileScreen({
                         </View>
                     </View>
                 </View>
-            </Modal>
+            </Modal >
 
             {/* Index Tracking Modal */}
-            <Modal
+            < Modal
                 visible={isIndexModalVisible}
                 transparent
                 animationType="fade"
@@ -3015,10 +3016,10 @@ export default function ProfileScreen({
                         </TouchableOpacity>
                     </View>
                 </View>
-            </Modal>
+            </Modal >
 
             {/* Browser Modal for Mini Apps */}
-            <Modal
+            < Modal
                 visible={!!activeTool}
                 animationType="slide"
                 presentationStyle="fullScreen"
@@ -3058,10 +3059,10 @@ export default function ProfileScreen({
                         </View>
                     )}
                 </View>
-            </Modal>
+            </Modal >
 
             {/* Color Picker Modal */}
-            <Modal
+            < Modal
                 visible={isColorPickerVisible}
                 transparent
                 animationType="slide"
@@ -3116,9 +3117,9 @@ export default function ProfileScreen({
                         </TouchableOpacity>
                     </View>
                 </View>
-            </Modal>
+            </Modal >
             {/* Sound Picker Modal */}
-            <Modal
+            < Modal
                 visible={isSoundPickerVisible}
                 transparent
                 animationType="slide"
@@ -3177,10 +3178,10 @@ export default function ProfileScreen({
                         </TouchableOpacity>
                     </View>
                 </View>
-            </Modal>
+            </Modal >
 
             {/* Privacy & Security Modal */}
-            <Modal
+            < Modal
                 visible={isPrivacyModalVisible}
                 transparent
                 animationType="fade"
@@ -3226,9 +3227,9 @@ export default function ProfileScreen({
                         </TouchableOpacity>
                     </View>
                 </View>
-            </Modal>
+            </Modal >
             {/* Security Modal */}
-            <Modal
+            < Modal
                 animationType="slide"
                 transparent={true}
                 visible={isSecurityModalVisible}
@@ -3577,8 +3578,8 @@ export default function ProfileScreen({
                         )}
                     </View>
                 </View>
-            </Modal>
-        </ThemedView>
+            </Modal >
+        </ThemedView >
     );
 }
 
@@ -3636,7 +3637,7 @@ const styles = StyleSheet.create({
     },
     content: {
         padding: 24,
-        paddingTop: 60,
+        paddingTop: 12,
         paddingBottom: 40,
     },
     header: {
@@ -3919,6 +3920,7 @@ const styles = StyleSheet.create({
     categoriesContainer: {
         flex: 1,
         padding: 20,
+        paddingTop: 12,
     },
     addCategoryBtn: {
         flexDirection: 'row',
