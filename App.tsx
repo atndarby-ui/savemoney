@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { StatusBar, useColorScheme, View, TouchableOpacity, StyleSheet, Text } from 'react-native';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -22,7 +23,7 @@ const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 // Custom Button Component for the middle tab
-const CustomTabBarButton = ({ children, onPress }: any) => (
+const CustomTabBarButton = ({ children, onPress, primaryColor }: any) => (
   <TouchableOpacity
     style={{
       top: -24, // Lifted up
@@ -37,7 +38,7 @@ const CustomTabBarButton = ({ children, onPress }: any) => (
         width: 64,
         height: 64, // Slightly larger
         borderRadius: 32,
-        backgroundColor: '#10b981',
+        backgroundColor: primaryColor,
         justifyContent: 'center',
         alignItems: 'center',
       }}
@@ -57,6 +58,7 @@ const TabNavigator = ({
   selectedPersonalityId,
   setSelectedPersonalityId,
   theme,
+  primaryColor,
   handleAddTransaction,
   handleUpdateTransaction,
   handleDeleteTransaction
@@ -65,8 +67,8 @@ const TabNavigator = ({
     screenOptions={{
       headerShown: false,
       tabBarStyle: {
-        backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
-        borderTopColor: isDark ? '#374151' : '#F3F4F6',
+        backgroundColor: theme === 'dark' ? '#1C1419' : '#FFFFFF', // Use subtle dark bg matching palette or just colors.surface
+        borderTopColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
         height: 80,
         paddingBottom: 20,
         paddingTop: 10,
@@ -77,8 +79,8 @@ const TabNavigator = ({
         elevation: 0,
         borderTopWidth: 1,
       },
-      tabBarActiveTintColor: '#10b981',
-      tabBarInactiveTintColor: isDark ? '#9CA3AF' : '#9CA3AF',
+      tabBarActiveTintColor: primaryColor,
+      tabBarInactiveTintColor: theme === 'dark' ? '#9CA3AF' : '#6B7280',
       tabBarShowLabel: true,
       tabBarLabelStyle: {
         fontSize: 10,
@@ -137,7 +139,7 @@ const TabNavigator = ({
       component={View}
       options={{
         tabBarButton: (props) => (
-          <CustomTabBarButton {...props} />
+          <CustomTabBarButton {...props} primaryColor={primaryColor} />
         ),
         tabBarLabel: () => null
       }}
@@ -162,7 +164,6 @@ const TabNavigator = ({
         <AnalysisScreen
           transactions={transactions}
           language={language}
-          theme={theme}
           navigation={navigation}
         />
       )}
@@ -323,6 +324,133 @@ export default function App() {
   const isDark = theme === 'dark';
 
   return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}
+
+function AppContent() {
+  const { theme, setTheme, isDark, colors } = useTheme();
+  const systemColorScheme = useColorScheme();
+  const [language, setLanguage] = useState<'Tiếng Việt' | 'English'>('Tiếng Việt');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>(CATEGORIES);
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const [selectedPersonalityId, setSelectedPersonalityId] = useState('super_accountant');
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      await Database.init();
+
+      const [savedTheme, savedLang, savedPersonality] = await Promise.all([
+        Database.getMetadata('app_theme'),
+        Database.getMetadata('app_lang'),
+        Database.getMetadata('app_personality'),
+      ]);
+
+      if (savedTheme) setTheme(savedTheme as 'light' | 'dark');
+      if (savedLang) setLanguage(savedLang as 'Tiếng Việt' | 'English');
+      if (savedPersonality) setSelectedPersonalityId(savedPersonality);
+
+      const loadedTransactions = await Database.getTransactions();
+      setTransactions(loadedTransactions);
+
+      const loadedCategories = await Database.getCategories();
+      if (loadedCategories.length > 0) {
+        setCategories(loadedCategories);
+      }
+
+      const loadedChat = await Database.getChatHistory();
+      setChatMessages(loadedChat);
+
+      setIsLoaded(true);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setIsLoaded(true);
+    }
+  };
+
+  // Sync Theme/Lang to DB
+  useEffect(() => {
+    if (isLoaded) {
+      Database.setMetadata('app_theme', theme);
+    }
+  }, [theme, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) {
+      Database.setMetadata('app_lang', language);
+    }
+  }, [language, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) {
+      Database.setMetadata('app_personality', selectedPersonalityId);
+    }
+  }, [selectedPersonalityId, isLoaded]);
+
+  // DB Sync Wrappers
+  const handleAddTransaction = async (newTx: Omit<Transaction, 'id'>) => {
+    const tx: Transaction = {
+      ...newTx,
+      id: Math.random().toString(36).substr(2, 9),
+    };
+    await Database.addTransaction(tx);
+    setTransactions(prevTransactions => [tx, ...prevTransactions]);
+  };
+
+  const handleUpdateTransaction = async (updatedTx: Transaction) => {
+    await Database.updateTransaction(updatedTx);
+    setTransactions(transactions.map(tx => tx.id === updatedTx.id ? updatedTx : tx));
+  };
+
+  const handleDeleteTransaction = async (id: string) => {
+    await Database.deleteTransaction(id);
+    setTransactions(transactions.filter(tx => tx.id !== id));
+  };
+
+  const handleAddCategory = async (newCat: Category) => {
+    await Database.addCategory(newCat);
+    setCategories([...categories, newCat]);
+  };
+
+  const handleUpdateCategory = async (updatedCat: Category) => {
+    await Database.updateCategory(updatedCat);
+    setCategories(categories.map(cat => cat.id === updatedCat.id ? updatedCat : cat));
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    await Database.deleteCategory(id);
+    setCategories(categories.filter(cat => cat.id !== id));
+  };
+
+  const handleSetChatMessages = (newMessagesOrUpdater: Message[] | ((prev: Message[]) => Message[])) => {
+    let nextMessages: Message[] = [];
+    if (typeof newMessagesOrUpdater === 'function') {
+      nextMessages = newMessagesOrUpdater(chatMessages);
+    } else {
+      nextMessages = newMessagesOrUpdater;
+    }
+
+    if (nextMessages.length > chatMessages.length) {
+      const addedMessages = nextMessages.slice(chatMessages.length);
+      addedMessages.forEach(msg => Database.addChatMessage(msg));
+    } else if (nextMessages.length === 0 && chatMessages.length > 0) {
+      Database.clearChatHistory();
+    }
+
+    setChatMessages(nextMessages);
+  };
+
+  const navigationTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
+
+  return (
     <SafeAreaProvider>
       <NavigationContainer theme={navigationTheme}>
         <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
@@ -340,6 +468,7 @@ export default function App() {
                 selectedPersonalityId={selectedPersonalityId}
                 setSelectedPersonalityId={setSelectedPersonalityId}
                 theme={theme}
+                primaryColor={colors.primary}
                 handleAddTransaction={handleAddTransaction}
                 handleUpdateTransaction={handleUpdateTransaction}
                 handleDeleteTransaction={handleDeleteTransaction}
@@ -370,8 +499,6 @@ export default function App() {
             {() => (
               <ProfileScreen
                 transactions={transactions}
-                theme={theme}
-                setTheme={setTheme}
                 language={language}
                 setLanguage={setLanguage}
                 categories={categories}

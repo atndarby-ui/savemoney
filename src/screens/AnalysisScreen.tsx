@@ -10,11 +10,14 @@ import {
     Platform,
 } from 'react-native';
 import { Transaction } from '../types';
+import { useTheme } from '../context/ThemeContext';
+import { ThemedText, ThemedView, GlassView } from '../components/ThemedComponents';
+import { SPACING, RADII, COLORS } from '../constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface AnalysisScreenProps {
     transactions: Transaction[];
     language: 'Tiếng Việt' | 'English';
-    theme: 'light' | 'dark';
     navigation: any;
 }
 
@@ -106,11 +109,10 @@ const SAVING_METHODS = [
 export default function AnalysisScreen({
     transactions,
     language,
-    theme,
     navigation,
 }: AnalysisScreenProps) {
     const t = translations[language];
-    const isDark = theme === 'dark';
+    const { colors, isDark } = useTheme();
     const [selectedMethodId, setSelectedMethodId] = useState('503020');
 
     const selectedMethod = useMemo(() =>
@@ -167,101 +169,112 @@ export default function AnalysisScreen({
             <View style={styles.budgetRow}>
                 <View style={styles.budgetHeader}>
                     <View style={styles.budgetLabelRow}>
-                        <Text style={styles.budgetIcon}>{icon}</Text>
-                        <Text style={[styles.budgetLabel, isDark && styles.textDark]}>{label}</Text>
+                        <ThemedText style={styles.budgetIcon}>{icon}</ThemedText>
+                        <ThemedText variant="bodyBold" style={styles.budgetLabel}>{label}</ThemedText>
                     </View>
-                    <Text style={[styles.budgetText, isDark && styles.textLight]}>
+                    <ThemedText variant="button" style={{ color: colors.textSecondary }}>
                         {formatCurrency(left)} {t.left}
-                    </Text>
+                    </ThemedText>
                 </View>
-                <View style={[styles.progressBg, isDark && styles.progressBgDark]}>
-                    <View style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: color }]} />
+                <View style={[styles.progressBg, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+                    <LinearGradient
+                        colors={[color, color]} // Can optimize to gradient later if needed
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={[styles.progressFill, { width: `${progress * 100}%` }]}
+                    />
                 </View>
             </View>
         );
     };
 
     return (
-        <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
-            <View style={[styles.header, isDark && styles.headerDark]}>
-                <View style={styles.headerIcon}>
-                    <Text style={styles.headerIconText}>🎯</Text>
-                </View>
-                <View>
-                    <Text style={[styles.headerTitle, isDark && styles.textDark]}>{t.askAI}</Text>
-                    <Text style={[styles.headerSubtitle, isDark && styles.textLight]}>{t.aiName}</Text>
-                </View>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-                {/* Spending Plan Summary */}
-                <View style={[styles.planCard, isDark && styles.planCardDark]}>
-                    <Text style={[styles.planTitle, isDark && styles.textDark]}>{t.spendingPlan}</Text>
-                    <Text style={styles.planSubtitle}>{selectedMethod.description}</Text>
-
-                    {budgetStats.map((stat, idx) => (
-                        <View key={idx}>
-                            {renderProgressBar(
-                                stat.label[language],
-                                stat.icon,
-                                stat.actual ?? 0,
-                                stat.target,
-                                selectedMethod.color
-                            )}
-                        </View>
-                    ))}
-
-                    <TouchableOpacity
-                        style={[styles.aiButton, { borderColor: selectedMethod.color }]}
-                        onPress={handleAskAI}
-                    >
-                        <Text style={[styles.aiButtonText, { color: selectedMethod.color }]}>✨ {t.askAIAction}</Text>
-                    </TouchableOpacity>
+        <ThemedView style={styles.container}>
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.header}>
+                    <View style={[styles.headerIcon, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+                        <Text style={{ fontSize: 24 }}>🎯</Text>
+                    </View>
+                    <View>
+                        <ThemedText variant="h2" style={styles.headerTitle}>{t.askAI}</ThemedText>
+                        <ThemedText variant="caption" style={{ color: colors.textSecondary }}>{t.aiName}</ThemedText>
+                    </View>
                 </View>
 
-                {/* Method Grid */}
-                <Text style={[styles.sectionHeader, isDark && styles.textDark]}>{t.savingMethods}</Text>
-                <View style={styles.methodGrid}>
-                    {SAVING_METHODS.map(method => (
-                        <TouchableOpacity
-                            key={method.id}
-                            style={[
-                                styles.methodCard,
-                                isDark && styles.methodCardDark,
-                                selectedMethodId === method.id && { borderColor: method.color, borderWidth: 2 }
-                            ]}
-                            onPress={() => handleMethodSelect(method.id)}
-                        >
-                            <View style={[styles.methodIconBox, { backgroundColor: method.color + '20' }]}>
-                                <Text style={styles.methodIconSmall}>{method.icon}</Text>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+                    {/* Spending Plan Summary */}
+                    <ThemedView variant="surface" style={[styles.planCard, { borderRadius: 24, borderWidth: 1, borderColor: colors.border }]}>
+                        <ThemedText variant="h3" style={styles.planTitle}>{t.spendingPlan}</ThemedText>
+                        <ThemedText variant="body" style={styles.planSubtitle}>{selectedMethod.description}</ThemedText>
+
+                        {budgetStats.map((stat, idx) => (
+                            <View key={idx}>
+                                {renderProgressBar(
+                                    stat.label[language],
+                                    stat.icon,
+                                    stat.actual ?? 0,
+                                    stat.target,
+                                    selectedMethod.color
+                                )}
                             </View>
-                            <Text style={[styles.methodTitle, isDark && styles.textDark]}>{method.title}</Text>
-                            <Text style={styles.methodSubtitle} numberOfLines={1}>{method.subtitle}</Text>
+                        ))}
 
+                        <TouchableOpacity
+                            style={[
+                                styles.aiButton,
+                                { borderColor: selectedMethod.color }
+                            ]}
+                            onPress={handleAskAI}
+                        >
+                            <ThemedText variant="button" style={{ color: selectedMethod.color }}>✨ {t.askAIAction}</ThemedText>
+                        </TouchableOpacity>
+                    </ThemedView>
+
+                    {/* Method Grid */}
+                    <ThemedText variant="h3" style={styles.sectionHeader}>{t.savingMethods}</ThemedText>
+                    <View style={styles.methodGrid}>
+                        {SAVING_METHODS.map(method => (
                             <TouchableOpacity
+                                key={method.id}
                                 style={[
-                                    styles.miniAction,
-                                    { backgroundColor: selectedMethodId === method.id ? method.color : '#9CA3AF' }
+                                    styles.methodCard,
+                                    {
+                                        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF',
+                                        borderColor: selectedMethodId === method.id ? method.color : 'transparent',
+                                        borderWidth: 2
+                                    }
                                 ]}
                                 onPress={() => handleMethodSelect(method.id)}
                             >
-                                <Text style={styles.miniActionText}>{t.btnAction}</Text>
+                                <View style={[styles.methodIconBox, { backgroundColor: method.color + '20' }]}>
+                                    <Text style={styles.methodIconSmall}>{method.icon}</Text>
+                                </View>
+                                <ThemedText variant="bodyBold" style={styles.methodTitle}>{method.title}</ThemedText>
+                                <ThemedText variant="small" style={{ color: colors.textSecondary }} numberOfLines={1}>{method.subtitle}</ThemedText>
+
+                                <View
+                                    style={[
+                                        styles.miniAction,
+                                        { backgroundColor: selectedMethodId === method.id ? method.color : (isDark ? 'rgba(255,255,255,0.1)' : '#F3F4F6') }
+                                    ]}
+                                >
+                                    <Text style={[styles.miniActionText, { color: selectedMethodId === method.id ? '#FFF' : colors.textSecondary }]}>{t.btnAction}</Text>
+                                </View>
                             </TouchableOpacity>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-            </ScrollView>
-        </SafeAreaView>
+                        ))}
+                    </View>
+                </ScrollView>
+            </SafeAreaView>
+        </ThemedView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F9FAFB',
     },
-    containerDark: {
-        backgroundColor: '#111827',
+    safeArea: {
+        flex: 1,
     },
     header: {
         flexDirection: 'row',
@@ -270,61 +283,30 @@ const styles = StyleSheet.create({
         padding: 20,
         paddingTop: Platform.OS === 'ios' ? 20 : 60,
     },
-    headerDark: {
-        backgroundColor: '#111827',
-    },
     headerIcon: {
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: '#111827',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    headerIconText: {
-        fontSize: 24,
-    },
     headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#111827',
-    },
-    headerSubtitle: {
-        fontSize: 12,
-        color: '#9CA3AF',
-        marginTop: 2,
+        marginBottom: 2,
     },
     content: {
         padding: 20,
         paddingBottom: 120,
     },
     planCard: {
-        backgroundColor: '#FFFFFF',
         padding: 20,
-        borderRadius: 24,
         marginBottom: 30,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
-        borderWidth: 1,
-        borderColor: '#F3F4F6',
-    },
-    planCardDark: {
-        backgroundColor: '#1F2937',
-        borderColor: '#374151',
     },
     planTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#111827',
         marginBottom: 4,
     },
     planSubtitle: {
-        fontSize: 12,
-        color: '#9CA3AF',
         marginBottom: 24,
+        opacity: 0.7,
     },
     budgetRow: {
         marginBottom: 20,
@@ -344,23 +326,12 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     budgetLabel: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#374151',
-    },
-    budgetText: {
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#9CA3AF',
+        // fontSize handled by variant
     },
     progressBg: {
         height: 8,
-        backgroundColor: '#F3F4F6',
         borderRadius: 4,
         overflow: 'hidden',
-    },
-    progressBgDark: {
-        backgroundColor: '#111827',
     },
     progressFill: {
         height: '100%',
@@ -375,14 +346,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    aiButtonText: {
-        fontSize: 13,
-        fontWeight: '600',
-    },
     sectionHeader: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#111827',
         marginBottom: 20,
     },
     methodGrid: {
@@ -392,19 +356,19 @@ const styles = StyleSheet.create({
     },
     methodCard: {
         width: (width - 56) / 2,
-        backgroundColor: '#FFFFFF',
         padding: 16,
         borderRadius: 24,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.03,
-        shadowRadius: 5,
-        elevation: 1,
-        borderWidth: 2,
-        borderColor: 'transparent',
-    },
-    methodCardDark: {
-        backgroundColor: '#1F2937',
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+            },
+            android: {
+                elevation: 4,
+            },
+        }),
     },
     methodIconBox: {
         width: 40,
@@ -418,31 +382,17 @@ const styles = StyleSheet.create({
         fontSize: 22,
     },
     methodTitle: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#111827',
         marginBottom: 4,
     },
-    methodSubtitle: {
-        fontSize: 11,
-        color: '#9CA3AF',
-        marginBottom: 12,
-    },
     miniAction: {
+        marginTop: 12,
         paddingVertical: 6,
         paddingHorizontal: 12,
         borderRadius: 10,
         alignSelf: 'flex-start',
     },
     miniActionText: {
-        color: '#FFFFFF',
         fontSize: 10,
         fontWeight: 'bold',
-    },
-    textDark: {
-        color: '#FFFFFF',
-    },
-    textLight: {
-        color: '#9CA3AF',
     },
 });

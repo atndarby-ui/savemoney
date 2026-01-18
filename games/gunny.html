@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gunny - Artillery Battle</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --neon-blue: #00d4ff;
+            --neon-pink: #ff00ff;
+            --neon-green: #39ff14;
+            --dark-bg: #0a0e27;
+            --player-color: #00d4ff;
+            --enemy-color: #ff00ff;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Rajdhani', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0f1428 100%);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            color: white;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 600px;
+            height: 100vh;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .header {
+            padding: 15px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 2px solid var(--neon-blue);
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            margin: 0;
+            background: linear-gradient(45deg, var(--neon-blue), var(--neon-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+            letter-spacing: 3px;
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .player-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .player-name {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--player-color);
+            text-shadow: 0 0 10px currentColor;
+        }
+
+        .enemy-name {
+            color: var(--enemy-color);
+            text-shadow: 0 0 10px currentColor;
+        }
+
+        .health-bar {
+            height: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #39ff14, #00ff88);
+            transition: width 0.5s;
+            box-shadow: 0 0 10px #39ff14;
+        }
+
+        .health-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-shadow: 0 0 5px black;
+        }
+
+        .wind-indicator {
+            text-align: center;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            margin: 0 15px;
+        }
+
+        .wind-label {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            text-transform: uppercase;
+        }
+
+        .wind-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--neon-green);
+            text-shadow: 0 0 10px var(--neon-green);
+        }
+
+        canvas {
+            flex: 1;
+            background: linear-gradient(to bottom, #1a1f3a 0%, #2d1b4e 100%);
+            border-top: 2px solid rgba(0, 212, 255, 0.3);
+            border-bottom: 2px solid rgba(0, 212, 255, 0.3);
+        }
+
+        .controls {
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-label {
+            min-width: 70px;
+            font-weight: 700;
+            color: var(--neon-blue);
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .control-value {
+            min-width: 50px;
+            text-align: right;
+            font-weight: 700;
+            color: var(--neon-green);
+            font-size: 1.1rem;
+        }
+
+        .btn-fire {
+            padding: 15px;
+            background: linear-gradient(135deg, #ff00ff, #ff0080);
+            border: none;
+            border-radius: 15px;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            cursor: pointer;
+            box-shadow: 0 8px 0 #990066, 0 10px 20px rgba(255, 0, 255, 0.4);
+            transition: all 0.1s;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 2px;
+        }
+
+        .btn-fire:active {
+            transform: translateY(6px);
+            box-shadow: 0 2px 0 #990066, 0 4px 10px rgba(255, 0, 255, 0.4);
+        }
+
+        .btn-fire:disabled {
+            background: #444;
+            box-shadow: 0 8px 0 #222;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .turn-indicator {
+            position: absolute;
+            top: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 30px;
+            border-radius: 20px;
+            border: 2px solid var(--neon-blue);
+            font-size: 1.2rem;
+            font-weight: 700;
+            z-index: 10;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: translateX(-50%) scale(1);
+            }
+
+            50% {
+                transform: translateX(-50%) scale(1.05);
+            }
+        }
+
+        .game-over {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .game-over.show {
+            display: flex;
+        }
+
+        .game-over h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3rem;
+            margin: 0 0 20px 0;
+            background: linear-gradient(45deg, var(--neon-green), var(--neon-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .btn-restart {
+            padding: 15px 40px;
+            background: linear-gradient(135deg, var(--neon-blue), var(--neon-pink));
+            border: none;
+            border-radius: 15px;
+            color: white;
+            font-size: 1.3rem;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: 'Orbitron', sans-serif;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="game-container">
+        <div class="header">
+            <h1>💥 GUNNY 💥</h1>
+        </div>
+
+        <div class="hud">
+            <div class="player-info">
+                <div class="player-name">🎯 YOU</div>
+                <div class="health-bar">
+                    <div class="health-fill" id="playerHealthBar" style="width: 100%;"></div>
+                    <div class="health-text" id="playerHealthText">100</div>
+                </div>
+            </div>
+
+            <div class="player-info" style="text-align: right;">
+                <div class="player-name enemy-name">🤖 CPU</div>
+                <div class="health-bar">
+                    <div class="health-fill" id="enemyHealthBar" style="width: 100%;"></div>
+                    <div class="health-text" id="enemyHealthText">100</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="wind-indicator">
+            <div class="wind-label">Wind</div>
+            <div class="wind-value" id="windDisplay">→ 0</div>
+        </div>
+
+        <div class="turn-indicator" id="turnIndicator">YOUR TURN</div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div class="controls" id="controls">
+            <div class="control-group">
+                <div class="control-label">Angle</div>
+                <input type="range" id="angleSlider" min="0" max="180" value="45">
+                <div class="control-value"><span id="angleValue">45</span>°</div>
+            </div>
+            <div class="control-group">
+                <div class="control-label">Power</div>
+                <input type="range" id="powerSlider" min="10" max="100" value="50">
+                <div class="control-value"><span id="powerValue">50</span>%</div>
+            </div>
+            <button class="btn-fire" id="fireBtn">🚀 FIRE!</button>
+        </div>
+
+        <div class="game-over" id="gameOver">
+            <h2 id="gameOverText">YOU WIN!</h2>
+            <button class="btn-restart" onclick="location.reload()">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Resize canvas
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Game state
+        const GRAVITY = 0.3;
+        const GROUND_HEIGHT = 80;
+        let wind = 0;
+        let currentTurn = 'player'; // 'player' or 'enemy'
+        let isAnimating = false;
+
+        let playerHealth = 100;
+        let enemyHealth = 100;
+
+        const player = {
+            x: 100,
+            y: canvas.height - GROUND_HEIGHT - 30,
+            width: 30,
+            height: 30,
+            color: '#00d4ff'
+        };
+
+        const enemy = {
+            x: canvas.width - 100,
+            y: canvas.height - GROUND_HEIGHT - 30,
+            width: 30,
+            height: 30,
+            color: '#ff00ff'
+        };
+
+        let projectiles = [];
+        let explosions = [];
+        let particles = [];
+
+        // Controls
+        const angleSlider = document.getElementById('angleSlider');
+        const powerSlider = document.getElementById('powerSlider');
+        const angleValue = document.getElementById('angleValue');
+        const powerValue = document.getElementById('powerValue');
+        const fireBtn = document.getElementById('fireBtn');
+
+        angleSlider.addEventListener('input', (e) => {
+            angleValue.textContent = e.target.value;
+        });
+
+        powerSlider.addEventListener('input', (e) => {
+            powerValue.textContent = e.target.value;
+        });
+
+        fireBtn.addEventListener('click', () => {
+            if (currentTurn === 'player' && !isAnimating) {
+                fire();
+            }
+        });
+
+        // Generate new wind
+        function generateWind() {
+            wind = (Math.random() * 1 - 0.5) * 2; // -1 to 1
+            const windDisplay = document.getElementById('windDisplay');
+            const arrow = wind > 0 ? '→' : '←';
+            windDisplay.textContent = `${arrow} ${Math.abs(wind).toFixed(1)}`;
+        }
+
+        generateWind();
+
+        // Fire projectile
+        function fire() {
+            isAnimating = true;
+            fireBtn.disabled = true;
+
+            const angle = parseFloat(angleSlider.value) * (Math.PI / 180);
+            const power = parseFloat(powerSlider.value) / 10;
+
+            const vx = Math.cos(angle) * power;
+            const vy = -Math.sin(angle) * power;
+
+            projectiles.push({
+                x: player.x + player.width / 2,
+                y: player.y,
+                vx: vx,
+                vy: vy,
+                radius: 5,
+                color: player.color,
+                trail: []
+            });
+
+            playSfx(800, 'square', 0.2, 0.1);
+        }
+
+        // AI turn
+        function aiTurn() {
+            setTimeout(() => {
+                // Simple AI: aim at player with some randomness
+                const dx = player.x - enemy.x;
+                const dy = player.y - enemy.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // Calculate angle
+                let angle = Math.atan2(-dy, -dx);
+                angle += (Math.random() - 0.5) * 0.3; // Add randomness
+
+                // Calculate power based on distance
+                let power = (distance / canvas.width) * 80 + 20;
+                power += (Math.random() - 0.5) * 20;
+                power = Math.max(20, Math.min(100, power));
+
+                const vx = Math.cos(angle) * (power / 10);
+                const vy = Math.sin(angle) * (power / 10);
+
+                projectiles.push({
+                    x: enemy.x + enemy.width / 2,
+                    y: enemy.y,
+                    vx: vx,
+                    vy: vy,
+                    radius: 5,
+                    color: enemy.color,
+                    trail: []
+                });
+
+                playSfx(800, 'square', 0.2, 0.1);
+            }, 1000);
+        }
+
+        // Update projectiles
+        function updateProjectiles() {
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const p = projectiles[i];
+
+                // Store trail
+                p.trail.push({ x: p.x, y: p.y });
+                if (p.trail.length > 20) p.trail.shift();
+
+                // Apply physics
+                p.vx += wind * 0.05;
+                p.vy += GRAVITY;
+                p.x += p.vx;
+                p.y += p.vy;
+
+                // Check collision with ground
+                if (p.y >= canvas.height - GROUND_HEIGHT) {
+                    createExplosion(p.x, canvas.height - GROUND_HEIGHT, 30);
+                    projectiles.splice(i, 1);
+                    endTurn();
+                    continue;
+                }
+
+                // Check collision with player
+                if (currentTurn === 'enemy' && checkCollision(p, player)) {
+                    const damage = 20 + Math.random() * 20;
+                    playerHealth = Math.max(0, playerHealth - damage);
+                    updateHealthBars();
+                    createExplosion(p.x, p.y, 40);
+                    projectiles.splice(i, 1);
+                    playSfx(200, 'sawtooth', 0.3, 0.2);
+
+                    if (playerHealth <= 0) {
+                        endGame('enemy');
+                    } else {
+                        endTurn();
+                    }
+                    continue;
+                }
+
+                // Check collision with enemy
+                if (currentTurn === 'player' && checkCollision(p, enemy)) {
+                    const damage = 20 + Math.random() * 20;
+                    enemyHealth = Math.max(0, enemyHealth - damage);
+                    updateHealthBars();
+                    createExplosion(p.x, p.y, 40);
+                    projectiles.splice(i, 1);
+                    playSfx(200, 'sawtooth', 0.3, 0.2);
+
+                    if (enemyHealth <= 0) {
+                        endGame('player');
+                    } else {
+                        endTurn();
+                    }
+                    continue;
+                }
+
+                // Remove if out of bounds
+                if (p.x < 0 || p.x > canvas.width || p.y > canvas.height) {
+                    projectiles.splice(i, 1);
+                    endTurn();
+                }
+            }
+        }
+
+        function checkCollision(proj, tank) {
+            return proj.x > tank.x && proj.x < tank.x + tank.width &&
+                proj.y > tank.y && proj.y < tank.y + tank.height;
+        }
+
+        function createExplosion(x, y, size) {
+            explosions.push({ x, y, radius: 0, maxRadius: size, alpha: 1 });
+
+            // Create particles
+            for (let i = 0; i < 20; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 5 + 2;
+                particles.push({
+                    x, y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1,
+                    color: `hsl(${Math.random() * 60 + 10}, 100%, 50%)`
+                });
+            }
+        }
+
+        function updateExplosions() {
+            for (let i = explosions.length - 1; i >= 0; i--) {
+                const e = explosions[i];
+                e.radius += 2;
+                e.alpha -= 0.02;
+
+                if (e.alpha <= 0) {
+                    explosions.splice(i, 1);
+                }
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += GRAVITY * 0.3;
+                p.life -= 0.02;
+
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function endTurn() {
+            isAnimating = false;
+            fireBtn.disabled = false;
+
+            currentTurn = currentTurn === 'player' ? 'enemy' : 'player';
+            updateTurnIndicator();
+            generateWind();
+
+            if (currentTurn === 'enemy') {
+                setTimeout(() => {
+                    aiTurn();
+                }, 500);
+            }
+        }
+
+        function updateTurnIndicator() {
+            const indicator = document.getElementById('turnIndicator');
+            if (currentTurn === 'player') {
+                indicator.textContent = 'YOUR TURN';
+                indicator.style.borderColor = '#00d4ff';
+                indicator.style.color = '#00d4ff';
+            } else {
+                indicator.textContent = 'CPU TURN';
+                indicator.style.borderColor = '#ff00ff';
+                indicator.style.color = '#ff00ff';
+            }
+        }
+
+        function updateHealthBars() {
+            document.getElementById('playerHealthBar').style.width = playerHealth + '%';
+            document.getElementById('playerHealthText').textContent = Math.round(playerHealth);
+            document.getElementById('enemyHealthBar').style.width = enemyHealth + '%';
+            document.getElementById('enemyHealthText').textContent = Math.round(enemyHealth);
+        }
+
+        function endGame(winner) {
+            const gameOver = document.getElementById('gameOver');
+            const gameOverText = document.getElementById('gameOverText');
+
+            if (winner === 'player') {
+                gameOverText.textContent = '🎉 YOU WIN! 🎉';
+                playSfx(1200, 'sine', 0.5, 0.2);
+                setTimeout(() => playSfx(1500, 'sine', 0.5, 0.2), 200);
+            } else {
+                gameOverText.textContent = '💀 YOU LOSE 💀';
+                playSfx(200, 'sawtooth', 0.5, 0.2);
+            }
+
+            gameOver.classList.add('show');
+        }
+
+        // Draw functions
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw stars
+            for (let i = 0; i < 50; i++) {
+                const x = (i * 137.5) % canvas.width;
+                const y = (i * 73) % (canvas.height - GROUND_HEIGHT);
+                ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.5 + 0.5})`;
+                ctx.fillRect(x, y, 2, 2);
+            }
+
+            // Draw ground
+            const gradient = ctx.createLinearGradient(0, canvas.height - GROUND_HEIGHT, 0, canvas.height);
+            gradient.addColorStop(0, '#1a4d2e');
+            gradient.addColorStop(1, '#0f2818');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, canvas.height - GROUND_HEIGHT, canvas.width, GROUND_HEIGHT);
+
+            // Draw ground line
+            ctx.strokeStyle = '#39ff14';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height - GROUND_HEIGHT);
+            ctx.lineTo(canvas.width, canvas.height - GROUND_HEIGHT);
+            ctx.stroke();
+
+            // Draw player tank
+            drawTank(player);
+
+            // Draw enemy tank
+            drawTank(enemy);
+
+            // Draw aim indicator for player
+            if (currentTurn === 'player' && !isAnimating) {
+                const angle = parseFloat(angleSlider.value) * (Math.PI / 180);
+                const length = 40;
+                const endX = player.x + player.width / 2 + Math.cos(angle) * length;
+                const endY = player.y + player.height / 2 - Math.sin(angle) * length;
+
+                ctx.strokeStyle = player.color;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(player.x + player.width / 2, player.y + player.height / 2);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Draw projectiles
+            projectiles.forEach(p => {
+                // Draw trail
+                ctx.strokeStyle = p.color;
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.3;
+                ctx.beginPath();
+                p.trail.forEach((point, i) => {
+                    if (i === 0) ctx.moveTo(point.x, point.y);
+                    else ctx.lineTo(point.x, point.y);
+                });
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+
+                // Draw projectile
+                ctx.fillStyle = p.color;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            });
+
+            // Draw explosions
+            explosions.forEach(e => {
+                ctx.globalAlpha = e.alpha;
+                const gradient = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.radius);
+                gradient.addColorStop(0, '#ffff00');
+                gradient.addColorStop(0.3, '#ff6600');
+                gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+
+            // Draw particles
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, 3, 3);
+                ctx.globalAlpha = 1;
+            });
+        }
+
+        function drawTank(tank) {
+            // Tank body
+            ctx.fillStyle = tank.color;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = tank.color;
+            ctx.fillRect(tank.x, tank.y + 10, tank.width, tank.height - 10);
+
+            // Tank turret
+            ctx.beginPath();
+            ctx.arc(tank.x + tank.width / 2, tank.y + 15, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        // Game loop
+        function gameLoop() {
+            updateProjectiles();
+            updateExplosions();
+            updateParticles();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Sound
+        const audio = new (window.AudioContext || window.webkitAudioContext)();
+        function playSfx(freq, type, duration, vol) {
+            const osc = audio.createOscillator();
+            const gain = audio.createGain();
+            osc.connect(gain);
+            gain.connect(audio.destination);
+            osc.frequency.setValueAtTime(freq, audio.currentTime);
+            osc.type = type;
+            gain.gain.setValueAtTime(vol, audio.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + duration);
+            osc.start();
+            osc.stop(audio.currentTime + duration);
+        }
+
+        // Start game
+        gameLoop();
+    </script>
+</body>
+
+</html>

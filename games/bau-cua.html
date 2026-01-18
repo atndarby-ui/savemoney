@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bầu Cua Cá - Premium Edition</title>
+    <title>Bầu Cua Xóc Đĩa - Premium</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&family=Pacifico&display=swap"
@@ -13,6 +13,7 @@
         :root {
             --red-premium: #e11d48;
             --gold-premium: #fbbf24;
+            --gold-plate: #f59e0b;
             --dark-bg: #0f172a;
             --glass-bg: rgba(255, 255, 255, 0.1);
             --glass-border: rgba(255, 255, 255, 0.2);
@@ -27,7 +28,7 @@
         body {
             margin: 0;
             padding: 0;
-            background: radial-gradient(circle at center, #4c0519, #020617);
+            background: radial-gradient(circle at center, #1a4d2e, #0a1f1a);
             height: 100vh;
             display: flex;
             flex-direction: column;
@@ -55,7 +56,7 @@
         h1 {
             font-family: 'Pacifico', cursive;
             color: var(--gold-premium);
-            font-size: 3rem;
+            font-size: 2.5rem;
             margin: 0;
             text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(251, 191, 36, 0.4);
         }
@@ -69,7 +70,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
 
@@ -86,75 +87,296 @@
             color: var(--gold-premium);
         }
 
-        /* Dice Area */
-        .dice-stage {
-            height: 200px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 30px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 25px;
-            border: 2px dashed var(--glass-border);
+        /* XÓC ĐĨA STAGE - Main 3D Bowl Area */
+        .xoc-dia-stage {
+            height: 280px;
+            margin-bottom: 20px;
             position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            perspective: 1000px;
+        }
+
+        /* Golden Plate - REAL 3D */
+        .golden-plate {
+            width: 280px;
+            height: 80px;
+            background:
+                /* Top shine */
+                radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.4) 0%, transparent 50%),
+                /* Metallic gradient */
+                linear-gradient(145deg,
+                    #fef3c7 0%,
+                    #fbbf24 20%,
+                    #f59e0b 40%,
+                    #d97706 60%,
+                    #b45309 80%,
+                    #92400e 100%);
+            border-radius: 50%;
+            box-shadow:
+                /* Bottom depth shadow */
+                0 25px 60px rgba(180, 83, 9, 0.6),
+                0 15px 35px rgba(217, 119, 6, 0.4),
+                /* Inner concave */
+                inset 0 -8px 20px rgba(0, 0, 0, 0.3),
+                inset 0 -3px 10px rgba(0, 0, 0, 0.2),
+                /* Top highlight */
+                inset 0 8px 25px rgba(255, 255, 255, 0.4),
+                inset 0 3px 12px rgba(255, 255, 255, 0.3);
+            position: relative;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 15px;
+            transform-style: preserve-3d;
+            transform: rotateX(-8deg);
+            border: 2px solid #b45309;
+        }
+
+        /* Plate rim for 3D effect */
+        .golden-plate::before {
+            content: '';
+            position: absolute;
+            top: -3px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 102%;
+            height: 12px;
+            background: linear-gradient(to bottom,
+                    #fef3c7 0%,
+                    #fbbf24 30%,
+                    #f59e0b 60%,
+                    #d97706 100%);
+            border-radius: 50%;
+            box-shadow:
+                0 -2px 6px rgba(255, 255, 255, 0.6),
+                0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Plate bottom shadow */
+        .golden-plate::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 95%;
+            height: 20px;
+            background: radial-gradient(ellipse, rgba(180, 83, 9, 0.5) 0%, transparent 70%);
+            border-radius: 50%;
+            filter: blur(8px);
+        }
+
+        /* Dice Container on Plate */
+        .dice-container {
+            display: flex;
+            gap: 10px;
+            position: relative;
+            z-index: 2;
         }
 
         .dice {
-            width: 80px;
-            height: 80px;
+            width: 60px;
+            height: 60px;
             background: white;
-            border-radius: 12px;
+            border-radius: 10px;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 3rem;
-            box-shadow: 0 8px 0 #cbd5e1, 0 15px 30px rgba(0, 0, 0, 0.4);
+            font-size: 2.5rem;
+            box-shadow: 0 6px 0 #cbd5e1, 0 10px 20px rgba(0, 0, 0, 0.4);
             transition: transform 0.1s;
             color: #1e293b;
+            transform-style: preserve-3d;
+        }
+
+        /* Bowl/Lid - REAL 3D */
+        .bowl {
+            position: absolute;
+            width: 260px;
+            height: 200px;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            transform-style: preserve-3d;
+            transition: all 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            z-index: 10;
+            filter: drop-shadow(0 25px 40px rgba(0, 0, 0, 0.4));
+        }
+
+        .bowl-body {
+            width: 100%;
+            height: 130px;
+            background:
+                radial-gradient(ellipse at 50% 20%, rgba(255, 255, 255, 0.9) 0%, transparent 50%),
+                radial-gradient(ellipse at center, #f1f5f9 0%, #e2e8f0 40%, #cbd5e1 100%);
+            border-radius: 50% 50% 45% 45% / 60% 60% 40% 40%;
             position: relative;
+            box-shadow:
+                /* Outer shadows for depth */
+                0 20px 50px rgba(0, 0, 0, 0.5),
+                0 10px 20px rgba(0, 0, 0, 0.3),
+                /* Inner shadows for concave effect */
+                inset 0 -15px 25px rgba(0, 0, 0, 0.15),
+                inset 0 -5px 10px rgba(0, 0, 0, 0.1),
+                /* Top highlight */
+                inset 0 15px 30px rgba(255, 255, 255, 0.9),
+                inset 0 5px 15px rgba(255, 255, 255, 0.6);
+            border: 3px solid #94a3b8;
+            transform: rotateX(-5deg);
         }
 
-        .dice.shaking {
-            animation: toss 0.6s infinite cubic-bezier(0.45, 0.05, 0.55, 0.95);
+        /* Bowl rim/lip for 3D depth */
+        .bowl-body::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 105%;
+            height: 20px;
+            background:
+                linear-gradient(to bottom,
+                    #f8fafc 0%,
+                    #e2e8f0 30%,
+                    #cbd5e1 70%,
+                    #94a3b8 100%);
+            border-radius: 50%;
+            box-shadow:
+                0 -3px 8px rgba(255, 255, 255, 0.8),
+                0 3px 6px rgba(0, 0, 0, 0.2),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.1);
         }
 
-        .dice:nth-child(1).shaking {
-            animation-delay: 0s;
+        /* Bottom shadow/base */
+        .bowl-body::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            height: 15px;
+            background: radial-gradient(ellipse, rgba(0, 0, 0, 0.3) 0%, transparent 70%);
+            border-radius: 50%;
         }
 
-        .dice:nth-child(2).shaking {
-            animation-delay: 0.1s;
+        /* XÓC Text on Bowl */
+        .bowl-text {
+            position: absolute;
+            top: 35%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotateX(5deg);
+            font-size: 2.5rem;
+            font-weight: 900;
+            background: linear-gradient(145deg, #f59e0b 0%, #d97706 50%, #b45309 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow:
+                2px 2px 4px rgba(0, 0, 0, 0.2),
+                0 0 10px rgba(217, 119, 6, 0.3);
+            font-family: 'Pacifico', cursive;
+            filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.3));
         }
 
-        .dice:nth-child(3).shaking {
-            animation-delay: 0.2s;
+        /* Floral Pattern SVG on Bowl */
+        .bowl-pattern {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            opacity: 0.4;
+            filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.2));
         }
 
-        @keyframes toss {
-            0% {
-                transform: translateY(0) rotateX(0) rotateY(0) scale(1);
-                box-shadow: 0 8px 0 #cbd5e1, 0 15px 30px rgba(0, 0, 0, 0.4);
-            }
+        .pattern-left {
+            left: 20px;
+            top: 40px;
+            transform: rotateX(5deg) rotateY(-15deg);
+        }
 
-            25% {
-                transform: translateY(-100px) rotateX(45deg) rotateY(45deg) scale(1.2);
-                box-shadow: 0 40px 50px rgba(0, 0, 0, 0.2);
+        .pattern-right {
+            right: 20px;
+            top: 40px;
+            transform: rotateX(5deg) rotateY(15deg);
+        }
+
+        /* Bowl States */
+        .bowl.covered {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .bowl.lifted {
+            transform: translateX(-50%) translateY(-220px) rotateX(15deg);
+        }
+
+        .bowl.shaking {
+            animation: shake 0.15s infinite;
+        }
+
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translateX(-50%) translateY(0) rotate(-2deg);
             }
 
             50% {
-                transform: translateY(0) rotateX(180deg) rotateY(180deg) scale(1);
-                box-shadow: 0 8px 0 #cbd5e1, 0 15px 30px rgba(0, 0, 0, 0.4);
+                transform: translateX(-50%) translateY(0) rotate(2deg);
+            }
+        }
+
+        /* Dice animations during shake */
+        .dice.hidden {
+            opacity: 0;
+            transform: scale(0);
+        }
+
+        .dice.rolling {
+            animation: diceRoll 0.15s infinite;
+        }
+
+        @keyframes diceRoll {
+            0% {
+                transform: rotateX(0deg) rotateY(0deg);
+            }
+
+            25% {
+                transform: rotateX(90deg) rotateY(90deg);
+            }
+
+            50% {
+                transform: rotateX(180deg) rotateY(180deg);
             }
 
             75% {
-                transform: translateY(-50px) rotateX(225deg) rotateY(225deg) scale(1.1);
-                box-shadow: 0 20px 30px rgba(0, 0, 0, 0.3);
+                transform: rotateX(270deg) rotateY(270deg);
             }
 
             100% {
-                transform: translateY(0) rotateX(360deg) rotateY(360deg) scale(1);
-                box-shadow: 0 8px 0 #cbd5e1, 0 15px 30px rgba(0, 0, 0, 0.4);
+                transform: rotateX(360deg) rotateY(360deg);
+            }
+        }
+
+        .dice.revealed {
+            animation: reveal 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+
+        @keyframes reveal {
+            0% {
+                opacity: 0;
+                transform: scale(0) translateY(-100px);
+            }
+
+            50% {
+                transform: scale(1.2) translateY(-20px);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1) translateY(0);
             }
         }
 
@@ -162,14 +384,13 @@
         .betting-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            flex-grow: 1;
+            gap: 10px;
         }
 
         .bet-item {
             background: var(--glass-bg);
             border: 2px solid var(--glass-border);
-            border-radius: 20px;
+            border-radius: 15px;
             aspect-ratio: 1/1;
             display: flex;
             flex-direction: column;
@@ -190,22 +411,40 @@
             background: rgba(251, 191, 36, 0.1);
         }
 
+        .bet-item.winner {
+            background: rgba(34, 197, 94, 0.3);
+            border-color: #22c55e;
+            animation: pulse 1s ease-in-out;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
         .bet-icon {
-            font-size: 3rem;
+            font-size: 2.5rem;
             margin-bottom: 5px;
         }
 
         .bet-name {
             font-weight: 700;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
             color: #ccc;
         }
 
         .bet-amount {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 8px;
+            right: 8px;
             background: var(--red-premium);
             color: white;
             font-size: 0.7rem;
@@ -221,7 +460,7 @@
 
         /* Controls */
         .controls {
-            margin-top: 20px;
+            margin-top: 15px;
             display: flex;
             gap: 10px;
         }
@@ -241,7 +480,7 @@
 
         .btn-roll {
             background: var(--gold-premium);
-            color: #4c0519;
+            color: #1a4d2e;
         }
 
         .btn-roll:active {
@@ -260,7 +499,7 @@
         .chip-selector {
             display: flex;
             justify-content: space-around;
-            margin-top: 15px;
+            margin-top: 12px;
         }
 
         .chip {
@@ -307,7 +546,7 @@
         #setupOverlay {
             position: absolute;
             inset: 0;
-            background: rgba(2, 6, 23, 0.9);
+            background: rgba(2, 6, 23, 0.95);
             backdrop-filter: blur(20px);
             z-index: 100;
             display: flex;
@@ -349,6 +588,9 @@
         /* Result Animation */
         .result-text {
             position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
             font-size: 2rem;
             font-weight: 900;
             color: var(--gold-premium);
@@ -356,20 +598,40 @@
             pointer-events: none;
             opacity: 0;
             transition: all 0.5s;
+            z-index: 20;
         }
 
         .result-text.show {
             opacity: 1;
-            transform: translateY(-50px);
+            transform: translateX(-50%) translateY(-30px);
+        }
+
+        /* Game Phase Text */
+        .phase-text {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.2rem;
+            font-weight: 900;
+            color: var(--gold-premium);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 5;
+        }
+
+        .phase-text.show {
+            opacity: 1;
         }
     </style>
 </head>
 
 <body>
-
     <div class="game-container">
         <div class="header">
-            <h1>Bầu Cua Cá</h1>
+            <h1>🎲 Bầu Cua Xóc Đĩa 🎲</h1>
         </div>
 
         <div id="setupOverlay">
@@ -390,11 +652,41 @@
                 onclick="resetBets()">XÓA CƯỢC</button>
         </div>
 
-        <div class="dice-stage" id="diceStage">
-            <div class="dice" id="dice0">?</div>
-            <div class="dice" id="dice1">?</div>
-            <div class="dice" id="dice2">?</div>
+        <!-- XÓC ĐĨA 3D STAGE -->
+        <div class="xoc-dia-stage">
+            <div class="phase-text" id="phaseText"></div>
             <div id="winAmount" class="result-text">+0</div>
+
+            <!-- The Bowl/Lid -->
+            <div class="bowl covered" id="bowl">
+                <div class="bowl-body">
+                    <div class="bowl-text">XÓC</div>
+                    <!-- Floral patterns -->
+                    <svg class="bowl-pattern pattern-left" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="8" fill="#60a5fa" opacity="0.6" />
+                        <path d="M50,30 Q40,40 50,50 Q60,40 50,30" fill="#60a5fa" opacity="0.6" />
+                        <path d="M50,70 Q40,60 50,50 Q60,60 50,70" fill="#60a5fa" opacity="0.6" />
+                        <path d="M30,50 Q40,40 50,50 Q40,60 30,50" fill="#60a5fa" opacity="0.6" />
+                        <path d="M70,50 Q60,40 50,50 Q60,60 70,50" fill="#60a5fa" opacity="0.6" />
+                    </svg>
+                    <svg class="bowl-pattern pattern-right" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="8" fill="#60a5fa" opacity="0.6" />
+                        <path d="M50,30 Q40,40 50,50 Q60,40 50,30" fill="#60a5fa" opacity="0.6" />
+                        <path d="M50,70 Q40,60 50,50 Q60,60 50,70" fill="#60a5fa" opacity="0.6" />
+                        <path d="M30,50 Q40,40 50,50 Q40,60 30,50" fill="#60a5fa" opacity="0.6" />
+                        <path d="M70,50 Q60,40 50,50 Q60,60 70,50" fill="#60a5fa" opacity="0.6" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Golden Plate with Dice -->
+            <div class="golden-plate">
+                <div class="dice-container">
+                    <div class="dice hidden" id="dice0">?</div>
+                    <div class="dice hidden" id="dice1">?</div>
+                    <div class="dice hidden" id="dice2">?</div>
+                </div>
+            </div>
         </div>
 
         <div class="betting-grid">
@@ -438,7 +730,7 @@
         </div>
 
         <div class="controls">
-            <button class="btn btn-roll" id="rollBtn" onclick="roll()">XÓC</button>
+            <button class="btn btn-roll" id="rollBtn" onclick="roll()">XÓC ĐĨA</button>
         </div>
     </div>
 
@@ -480,6 +772,7 @@
                 } else {
                     itemEl.classList.remove('has-bet');
                 }
+                itemEl.classList.remove('winner');
             }
         }
 
@@ -504,11 +797,18 @@
 
         function resetBets() {
             if (isRolling) return;
-            currentBets.forEach((amt, i) => {
+            currentBets.forEach((amt) => {
                 balance += amt;
             });
             currentBets = [0, 0, 0, 0, 0, 0];
             updateUI();
+        }
+
+        function showPhase(text) {
+            const phaseEl = document.getElementById('phaseText');
+            phaseEl.textContent = text;
+            phaseEl.classList.add('show');
+            setTimeout(() => phaseEl.classList.remove('show'), 1500);
         }
 
         function roll() {
@@ -522,37 +822,93 @@
             isRolling = true;
             document.getElementById('rollBtn').disabled = true;
 
-            // Add shaking class
-            document.getElementById('dice0').classList.add('shaking');
-            document.getElementById('dice1').classList.add('shaking');
-            document.getElementById('dice2').classList.add('shaking');
+            const bowl = document.getElementById('bowl');
+            const dice0 = document.getElementById('dice0');
+            const dice1 = document.getElementById('dice1');
+            const dice2 = document.getElementById('dice2');
 
-            // Shake/Toss sound loop
-            const shakeInterval = setInterval(() => playSfx(200 + Math.random() * 200, 'square', 0.1, 0.03), 150);
+            // PHASE 1: Cover (bowl down, dice hidden)
+            bowl.classList.remove('lifted');
+            bowl.classList.add('covered');
+            dice0.classList.add('hidden');
+            dice1.classList.add('hidden');
+            dice2.classList.add('hidden');
+            showPhase('ĐẬY NẮP');
+            playSfx(300, 'sine', 0.3, 0.1);
 
             setTimeout(() => {
-                clearInterval(shakeInterval);
-                document.getElementById('dice0').classList.remove('shaking');
-                document.getElementById('dice1').classList.remove('shaking');
-                document.getElementById('dice2').classList.remove('shaking');
+                // PHASE 2: Betting phase (just a visual pause)
+                showPhase('ĐẶT CƯỢC');
+            }, 800);
 
-                // Impact sound
-                playSfx(100, 'sine', 0.2, 0.3);
+            setTimeout(() => {
+                // PHASE 3: Shaking
+                showPhase('XÓC...');
+                bowl.classList.add('shaking');
+                dice0.classList.remove('hidden');
+                dice1.classList.remove('hidden');
+                dice2.classList.remove('hidden');
+                dice0.classList.add('rolling');
+                dice1.classList.add('rolling');
+                dice2.classList.add('rolling');
 
-                const results = [
-                    Math.floor(Math.random() * 6),
-                    Math.floor(Math.random() * 6),
-                    Math.floor(Math.random() * 6)
-                ];
+                // Shake sound loop
+                const shakeInterval = setInterval(() => {
+                    playSfx(200 + Math.random() * 300, 'square', 0.08, 0.04);
+                }, 120);
 
-                document.getElementById('dice0').textContent = symbols[results[0]];
-                document.getElementById('dice1').textContent = symbols[results[1]];
-                document.getElementById('dice2').textContent = symbols[results[2]];
+                setTimeout(() => {
+                    clearInterval(shakeInterval);
+                    bowl.classList.remove('shaking');
+                    dice0.classList.remove('rolling');
+                    dice1.classList.remove('rolling');
+                    dice2.classList.remove('rolling');
 
-                processResults(results);
-                isRolling = false;
-                document.getElementById('rollBtn').disabled = false;
-            }, 2500); // Increased to 2.5s for more drama
+                    // PHASE 4: Lift bowl to reveal
+                    showPhase('MỞ NẮP');
+                    bowl.classList.remove('covered');
+                    bowl.classList.add('lifted');
+
+                    // Impact sound when lifting
+                    playSfx(500, 'sine', 0.3, 0.15);
+
+                    setTimeout(() => {
+                        // Generate results
+                        const results = [
+                            Math.floor(Math.random() * 6),
+                            Math.floor(Math.random() * 6),
+                            Math.floor(Math.random() * 6)
+                        ];
+
+                        dice0.textContent = symbols[results[0]];
+                        dice1.textContent = symbols[results[1]];
+                        dice2.textContent = symbols[results[2]];
+
+                        dice0.classList.remove('hidden');
+                        dice1.classList.remove('hidden');
+                        dice2.classList.remove('hidden');
+                        dice0.classList.add('revealed');
+                        dice1.classList.add('revealed');
+                        dice2.classList.add('revealed');
+
+                        // Reveal sound
+                        playSfx(800, 'sine', 0.2, 0.1);
+
+                        setTimeout(() => {
+                            dice0.classList.remove('revealed');
+                            dice1.classList.remove('revealed');
+                            dice2.classList.remove('revealed');
+                        }, 600);
+
+                        processResults(results);
+
+                        setTimeout(() => {
+                            isRolling = false;
+                            document.getElementById('rollBtn').disabled = false;
+                        }, 2000);
+                    }, 600);
+                }, 2000); // Shake for 2 seconds
+            }, 1800);
         }
 
         function processResults(results) {
@@ -565,21 +921,13 @@
                 counts[val] = (counts[val] || 0) + 1;
             });
 
-            // Calculate winnings
-            // Rules: For each die that matches, pay 1:1. Also refund the initial bet.
-            // So if you bet 10 on Crab and 1 Crab appears, you get 10 profit + 10 back = 20 total.
-            // If 2 Crabs appear, you get 20 profit + 10 back = 30 total.
-
             currentBets.forEach((bet, i) => {
                 if (bet > 0) {
                     if (counts[i]) {
                         winAmount += bet * counts[i];
                         refundAmount += bet;
                         // Visual highlight
-                        document.querySelector(`.bet-item[data-id="${i}"]`).style.backgroundColor = 'rgba(34, 197, 94, 0.3)';
-                        setTimeout(() => {
-                            document.querySelector(`.bet-item[data-id="${i}"]`).style.backgroundColor = '';
-                        }, 2000);
+                        document.querySelector(`.bet-item[data-id="${i}"]`).classList.add('winner');
                     }
                 }
             });
@@ -594,6 +942,7 @@
                 playSfx(1200, 'sine', 0.5, 0.2);
                 setTimeout(() => playSfx(1500, 'sine', 0.5, 0.2), 100);
             } else {
+                winEl.textContent = `0`;
                 playSfx(150, 'sawtooth', 0.3, 0.1);
             }
 

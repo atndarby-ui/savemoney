@@ -72,9 +72,14 @@ export class Database {
             // 1. Transactions
             const savedTx = await AsyncStorage.getItem('mintflow_transactions');
             if (savedTx) {
-                const transactions: Transaction[] = JSON.parse(savedTx);
+                const transactions: any[] = JSON.parse(savedTx);
                 for (const tx of transactions) {
-                    await this.addTransaction(tx); // Reuse insert method
+                    // Convert date string back to Date object for compatibility with addTransaction
+                    const preparedTx = {
+                        ...tx,
+                        date: new Date(tx.date)
+                    };
+                    await this.addTransaction(preparedTx);
                 }
             } else {
                 // Init with defaults if empty
@@ -145,9 +150,17 @@ export class Database {
 
     static async addTransaction(tx: Transaction) {
         try {
+            if (!this.db) {
+                console.error('addTransaction: Database not initialized');
+                return;
+            }
+            // Ensure date is a valid Date object before calling toISOString()
+            const dateObj = tx.date instanceof Date ? tx.date : new Date(tx.date);
+            const isoDate = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : new Date().toISOString();
+
             await this.db.runAsync(
                 'INSERT OR REPLACE INTO transactions (id, amount, type, categoryId, date, note, imageUri) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [tx.id, tx.amount, tx.type, tx.categoryId, tx.date.toISOString(), tx.note || '', tx.imageUri || null]
+                [tx.id, tx.amount, tx.type, tx.categoryId, isoDate, tx.note || '', tx.imageUri || null]
             );
         } catch (error) {
             console.error('addTransaction error:', error);
@@ -175,6 +188,10 @@ export class Database {
 
     static async addCategory(cat: Category) {
         try {
+            if (!this.db) {
+                console.error('addCategory: Database not initialized');
+                return;
+            }
             await this.db.runAsync(
                 'INSERT OR REPLACE INTO categories (id, name, icon, type, color) VALUES (?, ?, ?, ?, ?)',
                 [cat.id, cat.name, cat.icon, cat.type, cat.color]
@@ -204,9 +221,17 @@ export class Database {
 
     static async addChatMessage(msg: Message) {
         try {
+            if (!this.db) {
+                console.error('addChatMessage: Database not initialized');
+                return;
+            }
+            // Ensure no null/undefined values are passed to SQLite to avoid Native NullPointerException
+            const role = msg.role || 'user';
+            const text = msg.text || '';
+
             await this.db.runAsync(
                 'INSERT INTO chat_history (role, text) VALUES (?, ?)',
-                [msg.role, msg.text]
+                [role, text]
             );
         } catch (error) {
             console.error('addChatMessage error', error);

@@ -1,0 +1,5 @@
+{
+  "name": "Bau Cua 3D Premium",
+  "description": "A high-end 3D implementation of the classic Vietnamese Bầu Cua game using React Three Fiber and Tailwind CSS.",
+  "requestFramePermissions": []
+}

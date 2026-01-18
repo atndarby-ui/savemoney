@@ -23,11 +23,12 @@ import { NotificationService } from '../services/NotificationService';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { WebView } from 'react-native-webview';
+import { useTheme, ACCENT_COLORS, AccentColorKey } from '../context/ThemeContext';
+import { ThemedText, ThemedView, GlassView } from '../components/ThemedComponents';
+import { COLORS, SPACING, RADII } from '../constants/theme';
 
 interface ProfileScreenProps {
     transactions: Transaction[];
-    theme: 'light' | 'dark';
-    setTheme: (theme: 'light' | 'dark') => void;
     language: 'Tiếng Việt' | 'English';
     setLanguage: (lang: 'Tiếng Việt' | 'English') => void;
     categories: Category[];
@@ -88,6 +89,7 @@ const translations = {
         goalsTitle: 'Nhắc nhở', // Renamed
         toolsTitle: 'Kho ứng dụng', // Changed from 'Công cụ' to match dynamic store feel
         addCategory: 'Thêm danh mục',
+        utilityTools: 'Công cụ tiện ích',
         editCategory: 'Sửa danh mục',
         deleteCategory: 'Xóa danh mục',
         catName: 'Tên danh mục',
@@ -155,6 +157,15 @@ const translations = {
         trackEur: 'Theo dõi EUR',
         trackBtc: 'Theo dõi Bitcoin',
         trackEth: 'Theo dõi Ethereum',
+        appearance: 'GIAO DIỆN',
+        accentColor: 'Màu chủ đạo',
+        chooseColor: 'Chọn màu',
+        colorPink: 'Hồng',
+        colorPurple: 'Tím',
+        colorBlue: 'Xanh dương',
+        colorGreen: 'Xanh lá',
+        colorOrange: 'Cam',
+        colorRed: 'Đỏ',
     },
     'English': {
         account: 'ACCOUNT',
@@ -182,6 +193,7 @@ const translations = {
         goalsTitle: 'Reminders', // Renamed
         toolsTitle: 'Tools',
         addCategory: 'Add Category',
+        utilityTools: 'Utility Tools',
         editCategory: 'Edit Category',
         deleteCategory: 'Delete Category',
         catName: 'Category Name',
@@ -249,13 +261,20 @@ const translations = {
         trackEur: 'Track EUR',
         trackBtc: 'Track Bitcoin',
         trackEth: 'Track Ethereum',
+        appearance: 'APPEARANCE',
+        accentColor: 'Accent Color',
+        chooseColor: 'Choose Color',
+        colorPink: 'Pink',
+        colorPurple: 'Purple',
+        colorBlue: 'Blue',
+        colorGreen: 'Green',
+        colorOrange: 'Orange',
+        colorRed: 'Red',
     },
 };
 
 export default function ProfileScreen({
     transactions,
-    theme,
-    setTheme,
     language,
     setLanguage,
     categories,
@@ -265,7 +284,7 @@ export default function ProfileScreen({
     onRestore,
 }: ProfileScreenProps) {
     const t = translations[language];
-    const isDark = theme === 'dark';
+    const { theme, colors, isDark, toggleTheme, accentColor, setAccentColor } = useTheme();
     const [currentUser, setCurrentUser] = useState<User | null>(null);
 
     const [activeTab, setActiveTab] = useState<'profile' | 'categories' | 'goals' | 'tools'>('profile');
@@ -300,6 +319,9 @@ export default function ProfileScreen({
     // Notification Settings Modal
     const [isNotifSettingsVisible, setIsNotifSettingsVisible] = useState(false);
     const [areNotificationsAllowed, setAreNotificationsAllowed] = useState(true);
+
+    // Color Picker Modal
+    const [isColorPickerVisible, setIsColorPickerVisible] = useState(false);
 
     // Tools - Compound Interest State
     const [isCompoundModalVisible, setIsCompoundModalVisible] = useState(false);
@@ -441,9 +463,7 @@ export default function ProfileScreen({
         };
     }, [transactions]);
 
-    const toggleTheme = () => {
-        setTheme(theme === 'light' ? 'dark' : 'light');
-    };
+
 
     const toggleLanguage = () => {
         setLanguage(language === 'Tiếng Việt' ? 'English' : 'Tiếng Việt');
@@ -725,38 +745,38 @@ export default function ProfileScreen({
     };
 
     return (
-        <View style={[styles.container, isDark && styles.containerDark]}>
-            <View style={[styles.tabContainer, isDark && styles.tabContainerDark]}>
+        <ThemedView style={styles.container}>
+            <View style={[styles.tabContainer, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 24 }}>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'profile' && styles.activeTab]}
+                        style={[styles.tab, activeTab === 'profile' && { backgroundColor: colors.primary }]}
                         onPress={() => setActiveTab('profile')}
                     >
-                        <Text style={[styles.tabText, activeTab === 'profile' && styles.activeTabText, isDark && activeTab !== 'profile' && styles.textDark70]}>
+                        <Text style={[styles.tabText, { color: activeTab === 'profile' ? '#FFF' : colors.textSecondary }]}>
                             {t.profileTitle}
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'goals' && styles.activeTab]}
+                        style={[styles.tab, activeTab === 'goals' && { backgroundColor: colors.primary }]}
                         onPress={() => setActiveTab('goals')}
                     >
-                        <Text style={[styles.tabText, activeTab === 'goals' && styles.activeTabText, isDark && activeTab !== 'goals' && styles.textDark70]}>
+                        <Text style={[styles.tabText, { color: activeTab === 'goals' ? '#FFF' : colors.textSecondary }]}>
                             {t.goalsTitle}
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'tools' && styles.activeTab]}
+                        style={[styles.tab, activeTab === 'tools' && { backgroundColor: colors.primary }]}
                         onPress={() => setActiveTab('tools')}
                     >
-                        <Text style={[styles.tabText, activeTab === 'tools' && styles.activeTabText, isDark && activeTab !== 'tools' && styles.textDark70]}>
+                        <Text style={[styles.tabText, { color: activeTab === 'tools' ? '#FFF' : colors.textSecondary }]}>
                             {t.toolsTitle}
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'categories' && styles.activeTab]}
+                        style={[styles.tab, activeTab === 'categories' && { backgroundColor: colors.primary }]}
                         onPress={() => setActiveTab('categories')}
                     >
-                        <Text style={[styles.tabText, activeTab === 'categories' && styles.activeTabText, isDark && activeTab !== 'categories' && styles.textDark70]}>
+                        <Text style={[styles.tabText, { color: activeTab === 'categories' ? '#FFF' : colors.textSecondary }]}>
                             {t.categoriesTitle}
                         </Text>
                     </TouchableOpacity>
@@ -764,16 +784,16 @@ export default function ProfileScreen({
             </View>
 
             <ScrollView
-                style={[styles.container, isDark && styles.containerDark]}
+                style={{ flex: 1, backgroundColor: colors.background }}
                 contentContainerStyle={styles.content}
             >
                 {activeTab === 'profile' && (
                     <>
                         {/* Profile Header */}
-                        <View style={[styles.header, isDark && styles.headerDark]}>
+                        <ThemedView variant="surface" style={[styles.header, { borderColor: colors.border }]}>
                             <View style={styles.avatarContainer}>
                                 <TouchableOpacity
-                                    style={[styles.avatar, isDark && styles.avatarDark]}
+                                    style={[styles.avatar, { borderColor: colors.primary }]}
                                     onPress={pickImage}
                                     activeOpacity={0.8}
                                 >
@@ -781,22 +801,24 @@ export default function ProfileScreen({
                                         source={{ uri: avatarUri || defaultAvatar }}
                                         style={styles.avatarImage}
                                     />
-                                    <View style={styles.verifiedBadge}>
+                                    <View style={[styles.verifiedBadge, { backgroundColor: colors.primary, borderColor: colors.surface }]}>
                                         <Ionicons name="camera" size={14} color="#FFF" />
                                     </View>
                                 </TouchableOpacity>
                             </View>
 
-                            <Text style={[styles.name, isDark && styles.textDark]}>
-                                {currentUser ? currentUser.email : (userName || t.guest)}
-                            </Text>
-                            <Text style={styles.email}>
+                            <TouchableOpacity onPress={() => setIsEditingInfo(true)}>
+                                <ThemedText variant="h2" style={styles.name}>
+                                    {currentUser ? currentUser.email : (userName || t.guest)}
+                                </ThemedText>
+                            </TouchableOpacity>
+                            <ThemedText variant="body" style={styles.email}>
                                 {currentUser ? (currentUser.email || userEmail) : t.loginToSync}
-                            </Text>
+                            </ThemedText>
 
                             {!currentUser && (
                                 <TouchableOpacity
-                                    style={[styles.smallButton, { backgroundColor: '#10b981', marginTop: 8 }]}
+                                    style={[styles.smallButton, { backgroundColor: colors.primary, marginTop: 8 }]}
                                     onPress={() => {
                                         setAuthMode('login');
                                         setIsAuthModalVisible(true);
@@ -807,126 +829,132 @@ export default function ProfileScreen({
                             )}
 
                             <View style={styles.statsRow}>
-                                <View style={[styles.statBox, isDark && styles.statBoxDark]}>
-                                    <Text style={styles.statLabel}>{t.income}</Text>
-                                    <Text style={[styles.statValue, styles.incomeText]}>
+                                <ThemedView variant="surface" style={{ flex: 1, alignItems: 'center', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.border }}>
+                                    <ThemedText variant="small" style={styles.statLabel}>{t.income}</ThemedText>
+                                    <ThemedText variant="h3" style={{ color: colors.success }}>
                                         +{formatLargeNum(totalIncome)}
-                                    </Text>
-                                </View>
-                                <View style={[styles.statBox, isDark && styles.statBoxDark]}>
-                                    <Text style={styles.statLabel}>{t.savings}</Text>
-                                    <Text style={[styles.statValue, isDark && styles.textDark]}>
+                                    </ThemedText>
+                                </ThemedView>
+                                <ThemedView variant="surface" style={{ flex: 1, alignItems: 'center', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.border }}>
+                                    <ThemedText variant="small" style={styles.statLabel}>{t.savings}</ThemedText>
+                                    <ThemedText variant="h3" style={{ color: colors.primary }}>
                                         {formatLargeNum(totalSavings)}
-                                    </Text>
-                                </View>
+                                    </ThemedText>
+                                </ThemedView>
                             </View>
-                        </View>
+                        </ThemedView>
 
                         {/* Sync Section */}
                         <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>{t.syncTitle}</Text>
-                            <View style={[styles.menuCard, isDark && styles.menuCardDark]}>
+                            <ThemedText variant="caption" style={styles.sectionTitle}>{t.syncTitle}</ThemedText>
+                            <ThemedView variant="surface" style={{ padding: 0, overflow: 'hidden', borderRadius: 24, borderWidth: 1, borderColor: colors.border }}>
                                 <MenuItem
-                                    icon="cloud-upload"
-                                    iconBgColor="#3B82F6"
+                                    icon="cloud-upload-outline"
+                                    iconBgColor="#EC4899"
                                     label={t.backup}
                                     onPress={handleBackup}
-                                    isDark={isDark}
                                 />
                                 <MenuItem
-                                    icon="cloud-download"
-                                    iconBgColor="#10b981"
+                                    icon="cloud-download-outline"
+                                    iconBgColor="#F472B6"
                                     label={t.restore}
                                     onPress={handleRestore}
-                                    isDark={isDark}
                                 />
                                 <MenuItem
-                                    icon="trash"
+                                    icon="trash-outline"
                                     iconBgColor="#EF4444"
                                     label={t.deleteBackup}
                                     onPress={handleDeleteBackup}
-                                    isDark={isDark}
                                     last
                                 />
-                            </View>
+                            </ThemedView>
                         </View>
 
                         {/* Account Section */}
                         <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>{t.account}</Text>
-                            <View style={[styles.menuCard, isDark && styles.menuCardDark]}>
+                            <ThemedText variant="caption" style={styles.sectionTitle}>{t.account}</ThemedText>
+                            <ThemedView variant="surface" style={{ padding: 0, overflow: 'hidden', borderRadius: 24, borderWidth: 1, borderColor: colors.border }}>
                                 <MenuItem
-                                    icon="person"
-                                    iconBgColor="#8B5CF6" // Purple
+                                    icon="person-outline"
+                                    iconBgColor="#EC4899" // Pink
                                     label={t.personalInfo}
                                     onPress={handleEditProfile}
-                                    isDark={isDark}
                                 />
                                 <MenuItem
-                                    icon="analytics"
-                                    iconBgColor="#10b981" // Green
+                                    icon="analytics-outline"
+                                    iconBgColor="#D946EF" // Purple
                                     label={t.indexTracking}
                                     onPress={() => setIsIndexModalVisible(true)}
-                                    isDark={isDark}
                                 />
                                 <MenuItem
-                                    icon="lock-closed"
-                                    iconBgColor="#F59E0B" // Yellow/Orange
+                                    icon="lock-closed-outline"
+                                    iconBgColor="#F472B6" // Light pink
                                     label={t.security}
                                     onPress={() => { }}
-                                    isDark={isDark}
-                                    last={!currentUser} // If logged in, we have delete item after
+                                    last={!currentUser}
                                 />
                                 {currentUser && (
                                     <MenuItem
-                                        icon="trash"
-                                        iconBgColor="#EF4444"
+                                        icon="trash-outline"
+                                        iconBgColor="#EF4444" // Red
                                         label={t.deleteAccount}
                                         onPress={handleDeleteAccount}
-                                        isDark={isDark}
                                         last
                                     />
                                 )}
-                            </View>
+                            </ThemedView>
+                        </View>
+
+                        {/* Appearance Section */}
+                        <View style={styles.section}>
+                            <ThemedText variant="caption" style={styles.sectionTitle}>{t.appearance}</ThemedText>
+                            <ThemedView variant="surface" style={{ padding: 0, overflow: 'hidden', borderRadius: 24, borderWidth: 1, borderColor: colors.border }}>
+                                <MenuItem
+                                    icon="color-palette-outline"
+                                    iconBgColor="#A855F7"
+                                    label={t.accentColor}
+                                    value={t[`color${accentColor.charAt(0).toUpperCase() + accentColor.slice(1)}` as keyof typeof t] as string}
+                                    valueColor={ACCENT_COLORS[accentColor]}
+                                    onPress={() => setIsColorPickerVisible(true)}
+                                    last
+                                />
+                            </ThemedView>
                         </View>
 
                         {/* Settings Section */}
                         <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>{t.settings}</Text>
-                            <View style={[styles.menuCard, isDark && styles.menuCardDark]}>
+                            <ThemedText variant="caption" style={styles.sectionTitle}>{t.settings}</ThemedText>
+                            <ThemedView variant="surface" style={{ padding: 0, overflow: 'hidden', borderRadius: 24, borderWidth: 1, borderColor: colors.border }}>
                                 <MenuItem
-                                    icon="notifications"
-                                    iconBgColor="#F59E0B"
+                                    icon="notifications-outline"
+                                    iconBgColor="#E879F9"
                                     label={t.notifications}
                                     onPress={handleNotificationSettings}
-                                    isDark={isDark}
                                 />
                                 <MenuItem
-                                    icon="moon"
-                                    iconBgColor="#6366F1"
+                                    icon="moon-outline"
+                                    iconBgColor="#D946EF"
                                     label={t.theme}
                                     value={theme === 'light' ? t.light : t.dark}
                                     onPress={toggleTheme}
-                                    isDark={isDark}
-                                    valueColor={theme === 'light' ? '#10b981' : '#FBBF24'}
+                                    valueColor={theme === 'light' ? '#EC4899' : '#F472B6'}
                                 />
                                 <MenuItem
-                                    icon="globe"
-                                    iconBgColor="#3B82F6" // Blue
+                                    icon="globe-outline"
+                                    iconBgColor="#EC4899"
                                     label={t.lang}
                                     value={language}
                                     onPress={toggleLanguage}
-                                    isDark={isDark}
-                                    valueColor="#10b981"
+                                    valueColor="#EC4899"
                                     last
                                 />
-                            </View>
+                            </ThemedView>
                         </View>
 
                         {/* Logout Button */}
                         {currentUser && (
                             <TouchableOpacity
-                                style={[styles.logoutButton, isDark && styles.logoutButtonDark]}
+                                style={[styles.logoutButton, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2', borderColor: 'rgba(239, 68, 68, 0.2)' }]}
                                 onPress={handleLogout}
                             >
                                 <Text style={styles.logoutText}>{t.logout}</Text>
@@ -938,14 +966,14 @@ export default function ProfileScreen({
                 {activeTab === 'goals' && (
                     <View style={styles.categoriesContainer}>
                         <TouchableOpacity
-                            style={[styles.addCategoryBtn, isDark && styles.addCategoryBtnDark]}
+                            style={[styles.addCategoryBtn, { backgroundColor: isDark ? 'rgba(236, 72, 153, 0.1)' : '#FCE7F3', borderColor: colors.primary }]}
                             onPress={() => {
                                 resetGoalForm();
                                 setIsGoalModalVisible(true);
                             }}
                         >
-                            <Ionicons name="add-circle" size={24} color="#ab10b9" />
-                            <Text style={[styles.addCategoryText, isDark && styles.textDark]}>{t.addGoal}</Text>
+                            <Ionicons name="add-circle" size={24} color={colors.primary} />
+                            <ThemedText style={{ color: colors.primary, fontWeight: '600' }}>{t.addGoal}</ThemedText>
                         </TouchableOpacity>
 
                         {(['future', 'debt', 'plan'] as const).map((type) => {
@@ -958,40 +986,45 @@ export default function ProfileScreen({
 
                             return (
                                 <View key={type} style={styles.section}>
-                                    <Text style={styles.sectionTitle}>{sectionTitle}</Text>
-                                    <View style={[styles.menuCard, isDark && styles.menuCardDark]}>
+                                    <ThemedText variant="caption" style={styles.sectionTitle}>{sectionTitle}</ThemedText>
+                                    <ThemedView variant="surface" style={{ padding: 0, overflow: 'hidden', borderRadius: 24, borderWidth: 1, borderColor: colors.border }}>
                                         {typeGoals.map((g, idx) => (
                                             <TouchableOpacity
                                                 key={g.id}
-                                                style={[styles.menuItem, idx !== typeGoals.length - 1 && styles.menuItemBorder, isDark && styles.menuItemBorderDark]}
+                                                activeOpacity={0.7}
                                                 onPress={() => handleEditGoal(g)}
                                             >
-                                                <View style={styles.menuLeft}>
-                                                    <View style={[styles.menuIconBox, { backgroundColor: type === 'debt' ? '#fee2e2' : '#e0e7ff' }]}>
-                                                        <Ionicons
-                                                            name={type === 'debt' ? 'alert-circle' : (type === 'future' ? 'rocket' : 'calendar')}
-                                                            size={20}
-                                                            color={type === 'debt' ? '#EF4444' : '#6366F1'}
-                                                        />
+                                                <View style={styles.menuItem}>
+                                                    <View style={styles.menuLeft}>
+                                                        <View style={[styles.menuIconBox, { backgroundColor: type === 'debt' ? '#fee2e2' : '#e0e7ff' }]}>
+                                                            <Ionicons
+                                                                name={type === 'debt' ? 'alert-circle' : (type === 'future' ? 'rocket' : 'calendar')}
+                                                                size={20}
+                                                                color={type === 'debt' ? '#EF4444' : '#6366F1'}
+                                                            />
+                                                        </View>
+                                                        <View>
+                                                            <ThemedText variant="bodyBold">{g.title}</ThemedText>
+                                                            <ThemedText variant="caption" style={{ color: colors.textSecondary }}>
+                                                                {formatLargeNum(g.currentAmount)} / {formatLargeNum(g.targetAmount)}
+                                                            </ThemedText>
+                                                        </View>
                                                     </View>
-                                                    <View>
-                                                        <Text style={[styles.menuLabel, isDark && styles.textDark]}>{g.title}</Text>
-                                                        <Text style={{ fontSize: 12, color: '#6B7280' }}>
-                                                            {formatLargeNum(g.currentAmount)} / {formatLargeNum(g.targetAmount)}
-                                                        </Text>
+                                                    <View style={styles.menuRight}>
+                                                        <ThemedText style={[styles.menuValue, { color: g.currentAmount >= g.targetAmount ? colors.success : colors.textSecondary }]}>
+                                                            {Math.round((g.currentAmount / g.targetAmount) * 100)}%
+                                                        </ThemedText>
+                                                        <TouchableOpacity onPress={() => handleDeleteGoal(g.id)} style={{ marginLeft: 8 }}>
+                                                            <Ionicons name="trash-outline" size={18} color={colors.error} />
+                                                        </TouchableOpacity>
                                                     </View>
                                                 </View>
-                                                <View style={styles.menuRight}>
-                                                    <Text style={[styles.menuValue, { color: g.currentAmount >= g.targetAmount ? '#10b981' : '#6B7280' }]}>
-                                                        {Math.round((g.currentAmount / g.targetAmount) * 100)}%
-                                                    </Text>
-                                                    <TouchableOpacity onPress={() => handleDeleteGoal(g.id)}>
-                                                        <Ionicons name="trash" size={18} color="#EF4444" />
-                                                    </TouchableOpacity>
-                                                </View>
+                                                {idx !== typeGoals.length - 1 && (
+                                                    <View style={{ height: 1, backgroundColor: colors.border, marginLeft: 64 }} />
+                                                )}
                                             </TouchableOpacity>
                                         ))}
-                                    </View>
+                                    </ThemedView>
                                 </View>
                             );
                         })}
@@ -1001,63 +1034,66 @@ export default function ProfileScreen({
                 {activeTab === 'tools' && (
                     <View style={styles.categoriesContainer}>
                         {/* Native Tools */}
-                        <Text style={[styles.sectionTitle, { marginLeft: 0, marginBottom: 8 }]}>Native Tools</Text>
                         <View style={styles.section}>
-                            <TouchableOpacity
-                                style={[styles.menuCard, isDark && styles.menuCardDark, { padding: 16 }]}
-                                onPress={() => setIsCompoundModalVisible(true)}
-                            >
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                                    <View style={[styles.menuIconBox, { backgroundColor: '#d1fae5', width: 48, height: 48, borderRadius: 16 }]}>
-                                        <Ionicons name="trending-up" size={24} color="#10b981" />
+                            <ThemedText variant="caption" style={styles.sectionTitle}>{t.utilityTools}</ThemedText>
+                            <ThemedView variant="surface" style={{ padding: 0, overflow: 'hidden', borderRadius: 24, borderWidth: 1, borderColor: colors.border }}>
+                                <TouchableOpacity
+                                    style={styles.menuItem}
+                                    onPress={() => setIsCompoundModalVisible(true)}
+                                >
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: 4 }}>
+                                        <View style={[styles.menuIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.1)', width: 48, height: 48, borderRadius: 16 }]}>
+                                            <Ionicons name="trending-up" size={24} color={colors.success} />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <ThemedText variant="bodyBold" style={{ fontSize: 16 }}>
+                                                {t.compoundInterest}
+                                            </ThemedText>
+                                            <ThemedText variant="caption" style={{ color: colors.textSecondary, marginTop: 2 }}>
+                                                {t.toolDesc_compound}
+                                            </ThemedText>
+                                        </View>
+                                        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
                                     </View>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={[styles.menuLabel, isDark && styles.textDark, { fontSize: 16 }]}>
-                                            {t.compoundInterest}
-                                        </Text>
-                                        <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>
-                                            {t.toolDesc_compound}
-                                        </Text>
-                                    </View>
-                                    <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-                                </View>
-                            </TouchableOpacity>
+                                </TouchableOpacity>
+                            </ThemedView>
                         </View>
 
                         {/* Dynamic Mini Apps */}
                         <View style={{ marginTop: 24, marginBottom: 8 }}>
-                            <Text style={[styles.sectionTitle, { marginLeft: 0, marginBottom: 0 }]}>Mini Apps & Games</Text>
+                            <ThemedText variant="caption" style={[styles.sectionTitle, { marginLeft: 0, marginBottom: 0 }]}>Mini Apps & Games</ThemedText>
                         </View>
 
                         <View style={{ gap: 12 }}>
                             {dynamicTools.map((tool) => (
-                                <TouchableOpacity
+                                <ThemedView
                                     key={tool.id}
-                                    style={[styles.menuCard, isDark && styles.menuCardDark, { padding: 16 }]}
-                                    onPress={() => setActiveTool(tool)}
+                                    variant="surface"
+                                    style={{ padding: 16, borderRadius: 24, borderWidth: 1, borderColor: colors.border }}
+                                    onTouchEnd={() => setActiveTool(tool)}
                                 >
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                                        <View style={[styles.menuIconBox, { backgroundColor: isDark ? '#374151' : '#F3F4F6', width: 48, height: 48, borderRadius: 16 }]}>
+                                        <View style={[styles.menuIconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F3F4F6', width: 48, height: 48, borderRadius: 16 }]}>
                                             <Text style={{ fontSize: 24 }}>{tool.icon}</Text>
                                         </View>
                                         <View style={{ flex: 1 }}>
-                                            <Text style={[styles.menuLabel, isDark && styles.textDark, { fontSize: 16 }]}>
+                                            <ThemedText variant="bodyBold" style={{ fontSize: 16 }}>
                                                 {tool.title}
-                                            </Text>
+                                            </ThemedText>
                                             {tool.description ? (
-                                                <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }} numberOfLines={1}>
+                                                <ThemedText variant="caption" style={{ color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
                                                     {tool.description}
-                                                </Text>
+                                                </ThemedText>
                                             ) : null}
                                         </View>
-                                        <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+                                        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
                                     </View>
-                                </TouchableOpacity>
+                                </ThemedView>
                             ))}
                             {dynamicTools.length === 0 && (
-                                <Text style={{ textAlign: 'center', color: '#6B7280', marginTop: 20 }}>
+                                <ThemedText style={{ textAlign: 'center', color: colors.textSecondary, marginTop: 20 }}>
                                     No apps available.
-                                </Text>
+                                </ThemedText>
                             )}
                         </View>
                     </View>
@@ -1066,50 +1102,55 @@ export default function ProfileScreen({
                 {activeTab === 'categories' && (
                     <View style={styles.categoriesContainer}>
                         <TouchableOpacity
-                            style={[styles.addCategoryBtn, isDark && styles.addCategoryBtnDark]}
+                            style={[styles.addCategoryBtn, { backgroundColor: isDark ? 'rgba(236, 72, 153, 0.1)' : '#FCE7F3', borderColor: colors.primary }]}
                             onPress={() => handleCategoryAction()}
                         >
-                            <Ionicons name="add-circle" size={24} color="#10b981" />
-                            <Text style={[styles.addCategoryText, isDark && styles.textDark]}>{t.addCategory}</Text>
+                            <Ionicons name="add-circle" size={24} color={colors.primary} />
+                            <ThemedText style={[styles.addCategoryText, { color: colors.primary }]}>{t.addCategory}</ThemedText>
                         </TouchableOpacity>
 
                         <View style={styles.catTypeTabs}>
                             <TouchableOpacity
-                                style={[styles.catTypeTab, editCatType === 'expense' && styles.catTypeTabActive]}
+                                style={[styles.catTypeTab, editCatType === 'expense' && { borderBottomColor: colors.primary }]}
                                 onPress={() => setEditCatType('expense')}
                             >
-                                <Text style={[styles.catTypeTabText, editCatType === 'expense' && styles.catTypeTabTextActive]}>
+                                <ThemedText style={[styles.catTypeTabText, editCatType === 'expense' && { color: colors.primary }]}>
                                     {t.expenseTab}
-                                </Text>
+                                </ThemedText>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.catTypeTab, editCatType === 'income' && styles.catTypeTabActive]}
+                                style={[styles.catTypeTab, editCatType === 'income' && { borderBottomColor: colors.primary }]}
                                 onPress={() => setEditCatType('income')}
                             >
-                                <Text style={[styles.catTypeTabText, editCatType === 'income' && styles.catTypeTabTextActive]}>
+                                <ThemedText style={[styles.catTypeTabText, editCatType === 'income' && { color: colors.primary }]}>
                                     {t.incomeTab}
-                                </Text>
+                                </ThemedText>
                             </TouchableOpacity>
                         </View>
 
-                        <View style={[styles.menuCard, isDark && styles.menuCardDark]}>
+                        <ThemedView variant="surface" style={{ padding: 0, overflow: 'hidden', borderRadius: 24, borderWidth: 1, borderColor: colors.border }}>
                             {categories.filter(c => c.type === editCatType).map((cat, idx, arr) => (
-                                <View key={cat.id} style={[styles.menuItem, idx !== arr.length - 1 && styles.menuItemBorder, isDark && styles.menuItemBorderDark]}>
-                                    <View style={styles.menuLeft}>
-                                        <Text style={{ fontSize: 24, marginRight: 12 }}>{cat.icon}</Text>
-                                        <Text style={[styles.menuLabel, isDark && styles.textDark]}>{cat.name}</Text>
+                                <View key={cat.id}>
+                                    <View style={styles.menuItem}>
+                                        <View style={styles.menuLeft}>
+                                            <Text style={{ fontSize: 24, marginRight: 12 }}>{cat.icon}</Text>
+                                            <ThemedText variant="bodyBold">{cat.name}</ThemedText>
+                                        </View>
+                                        <View style={styles.menuRight}>
+                                            <TouchableOpacity onPress={() => handleCategoryAction(cat)}>
+                                                <Ionicons name="pencil" size={20} color={colors.primary} style={{ marginRight: 15 }} />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => handleDeleteCategoryClick(cat.id)}>
+                                                <Ionicons name="trash-outline" size={20} color={colors.error} />
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
-                                    <View style={styles.menuRight}>
-                                        <TouchableOpacity onPress={() => handleCategoryAction(cat)}>
-                                            <Ionicons name="pencil" size={20} color="#3B82F6" style={{ marginRight: 15 }} />
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => handleDeleteCategoryClick(cat.id)}>
-                                            <Ionicons name="trash" size={20} color="#EF4444" />
-                                        </TouchableOpacity>
-                                    </View>
+                                    {idx !== arr.length - 1 && (
+                                        <View style={{ height: 1, backgroundColor: colors.border, marginLeft: 64 }} />
+                                    )}
                                 </View>
                             ))}
-                        </View>
+                        </ThemedView>
                     </View>
                 )}
             </ScrollView>
@@ -1700,7 +1741,7 @@ export default function ProfileScreen({
                 presentationStyle="pageSheet"
                 onRequestClose={() => setActiveTool(null)}
             >
-                <View style={[styles.container, isDark && styles.containerDark]}>
+                <View style={[styles.container, { backgroundColor: colors.background }]}>
                     <View style={{
                         flexDirection: 'row',
                         alignItems: 'center',
@@ -1727,7 +1768,62 @@ export default function ProfileScreen({
                     )}
                 </View>
             </Modal>
-        </View>
+
+            {/* Color Picker Modal */}
+            <Modal
+                visible={isColorPickerVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setIsColorPickerVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+                        <ThemedText variant="h2" style={{ marginBottom: 24 }}>{t.chooseColor}</ThemedText>
+
+                        <View style={{ gap: 12 }}>
+                            {(Object.keys(ACCENT_COLORS) as AccentColorKey[]).map((colorKey) => (
+                                <TouchableOpacity
+                                    key={colorKey}
+                                    style={[
+                                        styles.colorOption,
+                                        { backgroundColor: isDark ? colors.surface : '#F9FAFB' },
+                                        accentColor === colorKey && { borderColor: ACCENT_COLORS[colorKey], borderWidth: 2 }
+                                    ]}
+                                    onPress={() => {
+                                        setAccentColor(colorKey);
+                                        setIsColorPickerVisible(false);
+                                    }}
+                                >
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                        <View
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                borderRadius: 20,
+                                                backgroundColor: ACCENT_COLORS[colorKey],
+                                            }}
+                                        />
+                                        <ThemedText variant="bodyBold">
+                                            {t[`color${colorKey.charAt(0).toUpperCase() + colorKey.slice(1)}` as keyof typeof t] as string}
+                                        </ThemedText>
+                                    </View>
+                                    {accentColor === colorKey && (
+                                        <Ionicons name="checkmark-circle" size={24} color={ACCENT_COLORS[colorKey]} />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.modalButton, { backgroundColor: colors.primary, marginTop: 20 }]}
+                            onPress={() => setIsColorPickerVisible(false)}
+                        >
+                            <ThemedText style={{ color: '#FFF', fontWeight: 'bold' }}>{t.cancel}</ThemedText>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+        </ThemedView>
     );
 }
 
@@ -1737,7 +1833,6 @@ const MenuItem = ({
     label,
     value,
     onPress,
-    isDark,
     last,
     valueColor
 }: {
@@ -1746,36 +1841,43 @@ const MenuItem = ({
     label: string;
     value?: string;
     onPress: () => void;
-    isDark: boolean;
     last?: boolean;
     valueColor?: string;
-}) => (
-    <TouchableOpacity
-        style={[styles.menuItem, !last && styles.menuItemBorder, isDark && !last && styles.menuItemBorderDark]}
-        onPress={onPress}
-    >
-        <View style={styles.menuLeft}>
-            <View style={[styles.menuIconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : iconBgColor + '15' }]}>
-                <View style={[styles.iconCircle, { backgroundColor: isDark ? 'transparent' : 'transparent' }]}>
-                    <Ionicons name={icon} size={20} color={isDark ? iconBgColor : iconBgColor} />
+}) => {
+    const { colors, isDark } = useTheme();
+    return (
+        <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={onPress}
+        >
+            <View style={styles.menuItem}>
+                <View style={styles.menuLeft}>
+                    <View style={[styles.menuIconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : iconBgColor + '15' }]}>
+                        <View style={styles.iconCircle}>
+                            <Ionicons name={icon} size={20} color={isDark ? iconBgColor : iconBgColor} />
+                        </View>
+                    </View>
+                    <ThemedText variant="bodyBold">{label}</ThemedText>
+                </View>
+                <View style={styles.menuRight}>
+                    {value && <ThemedText variant="body" style={{ color: valueColor || colors.textSecondary }}>{value}</ThemedText>}
+                    <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                 </View>
             </View>
-            <Text style={[styles.menuLabel, isDark && styles.textDark]}>{label}</Text>
-        </View>
-        <View style={styles.menuRight}>
-            {value && <Text style={[styles.menuValue, valueColor ? { color: valueColor } : {}]}>{value}</Text>}
-            <Ionicons name="chevron-forward" size={16} color="#6B7280" />
-        </View>
-    </TouchableOpacity>
-);
+            {!last && (
+                <View style={{
+                    height: 1,
+                    backgroundColor: colors.border,
+                    marginLeft: 64, // 16(padding) + 36(icon) + 12(gap)
+                }} />
+            )}
+        </TouchableOpacity>
+    );
+};
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F9FAFB',
-    },
-    containerDark: {
-        backgroundColor: '#111827',
     },
     content: {
         padding: 24,
@@ -1783,7 +1885,6 @@ const styles = StyleSheet.create({
         paddingBottom: 40,
     },
     header: {
-        backgroundColor: '#FFFFFF',
         borderRadius: 28,
         padding: 24,
         alignItems: 'center',
@@ -1793,9 +1894,10 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.03,
         shadowRadius: 12,
         elevation: 2,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
     },
     headerDark: {
-        backgroundColor: '#1F2937',
         shadowColor: 'transparent',
         borderWidth: 1,
         borderColor: '#374151',
@@ -2042,11 +2144,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         paddingHorizontal: 24,
         paddingTop: 60,
-        backgroundColor: '#F9FAFB',
         gap: 16,
-    },
-    tabContainerDark: {
-        backgroundColor: '#111827',
     },
     tab: {
         paddingVertical: 8,
@@ -2134,6 +2232,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 16,
+    },
+    colorOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'transparent',
     },
     smallButtonText: {
         color: '#FFFFFF',

@@ -1,3 +1,4 @@
+import { useTheme } from '../context/ThemeContext';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     View,
@@ -214,6 +215,7 @@ export default function ChatScreen({
     navigation,
     route,
 }: ChatScreenProps) {
+    const { colors } = useTheme();
     const t = translations[language];
     const isDark = theme === 'dark';
     const [input, setInput] = useState('');
@@ -370,9 +372,9 @@ Quy tắc:
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
-            <View style={[styles.inner, isDark && styles.innerDark]}>
+            <View style={[styles.inner, { backgroundColor: colors.background }]}>
                 {/* Header Row */}
-                <View style={[styles.headerRow, isDark && styles.headerRowDark]}>
+                <View style={[styles.headerRow, { backgroundColor: colors.surface }]}>
                     <TouchableOpacity
                         style={[styles.dropdownTrigger, isDark && styles.dropdownTriggerDark]}
                         onPress={() => setShowPersonalityModal(true)}
@@ -506,7 +508,7 @@ Quy tắc:
                 {/* Input */}
                 <View style={[
                     styles.inputContainer,
-                    isDark && styles.inputContainerDark,
+                    { backgroundColor: colors.surface, borderTopColor: colors.border },
                     { paddingBottom: isKeyboardVisible ? 8 : 80 }
                 ]}>
                     <TextInput

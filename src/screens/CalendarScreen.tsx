@@ -1,70 +1,29 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import {
-    View,
-    Text,
-    ScrollView,
-    TouchableOpacity,
-    StyleSheet,
-    Dimensions,
-    Image,
-    Pressable,
-    ActivityIndicator,
-    Platform,
-    UIManager,
-    Modal,
-} from 'react-native';
-import Animated, { LinearTransition, FadeIn, FadeOut } from 'react-native-reanimated';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Transaction, DailySummary, Category } from '../types';
-import { formatCurrency, formatCompactCurrency, isSameDay } from '../utils/format';
-import { getGoldPrice, getFinancialRates, GoldPrice, FinancialRates } from '../services/finance';
-import { getLunarDate } from '../utils/lunar';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, Dimensions, Alert, ActivityIndicator, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutUp, Layout, LinearTransition } from 'react-native-reanimated';
+import { useFocusEffect } from '@react-navigation/native';
+import { useTheme } from '../context/ThemeContext';
+import { ThemedView } from '../components/ThemedComponents';
+import { formatCurrency, formatCompactCurrency } from '../utils/currency';
 import FloatingButtons from '../components/FloatingButtons';
+import { translations } from '../constants/translations';
+import { Transaction, Category } from '../types';
+import { getLunarDate } from '../utils/lunar';
+import { getGoldPrice, getFinancialRates } from '../services/finance';
 
+// Create animated components
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
-
-// Enable LayoutAnimation on Android
-if (
-    Platform.OS === 'android' &&
-    UIManager.setLayoutAnimationEnabledExperimental
-) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 interface CalendarScreenProps {
     transactions: Transaction[];
     categories: Category[];
-    onAddTransaction: (tx: Omit<Transaction, 'id'>) => void;
-    onUpdateTransaction: (tx: Transaction) => void;
-    onDeleteTransaction: (id: string) => void;
     navigation: any;
     language: 'Tiếng Việt' | 'English';
     theme: 'light' | 'dark';
 }
-
-const translations = {
-    'Tiếng Việt': {
-        income: 'Thu nhập',
-        expense: 'Chi tiêu',
-        net: 'Ròng',
-        details: 'Chi tiết ngày',
-        noTx: 'Chưa có giao dịch nào',
-        days: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
-        sjcBuy: 'SJC Mua',
-        sjcSell: 'SJC Bán',
-    },
-    'English': {
-        income: 'Income',
-        expense: 'Expense',
-        net: 'Net',
-        details: 'Daily Details',
-        noTx: 'No transactions yet',
-        days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-        sjcBuy: 'SJC Buy',
-        sjcSell: 'SJC Sell',
-    },
-};
 
 export default function CalendarScreen({
     transactions,
@@ -73,232 +32,224 @@ export default function CalendarScreen({
     language,
     theme,
 }: CalendarScreenProps) {
+    const { colors } = useTheme();
     const t = translations[language];
     const isDark = theme === 'dark';
-    const [currentDate, setCurrentDate] = useState(new Date());
-    const [selectedDate, setSelectedDate] = useState(new Date());
-    const [viewerImage, setViewerImage] = useState<string | null>(null);
-    const [avatarUri, setAvatarUri] = useState<string | null>(null);
+
     const [isAmountVisible, setIsAmountVisible] = useState(true);
-
-    // UI State
+    const [avatarUri, setAvatarUri] = useState<string | null>(null);
     const [isExpanded, setIsExpanded] = useState(false);
-
-    // Finance Data State
-    const [goldPrice, setGoldPrice] = useState<GoldPrice | null>(null);
-    const [rates, setRates] = useState<FinancialRates | null>(null);
+    const [selectedDate, setSelectedDate] = useState(new Date());
     const [isLoadingFinance, setIsLoadingFinance] = useState(false);
-    const [indexSettings, setIndexSettings] = useState({
-        usd: true,
-        eur: true,
-        btc: true,
-        eth: true,
-    });
+    const [goldPrice, setGoldPrice] = useState<any>(null);
+    const [rates, setRates] = useState<any>(null);
+    const [indexSettings, setIndexSettings] = useState<any>({});
+    const [viewerImage, setViewerImage] = useState<string | null>(null);
 
-    // Lunar Data
-    const lunarData = useMemo(() => getLunarDate(selectedDate), [selectedDate]);
+    // Load settings when screen comes into focus
+    useFocusEffect(
+        useCallback(() => {
+            loadSettings();
+        }, [])
+    );
 
+    // Load finance data on mount
     useEffect(() => {
-        const unsubscribe = navigation.addListener('focus', () => {
-            loadUserData();
-            fetchFinanceData();
-        });
+        loadFinanceData();
+    }, []);
 
-        // Initial fetch
-        fetchFinanceData();
+    const loadSettings = async () => {
+        const uri = await AsyncStorage.getItem('profile_avatar');
+        if (uri) setAvatarUri(uri);
 
-        // Realtime polling (silent update)
-        const interval = setInterval(() => fetchFinanceData(true), 60000);
-
-        return () => {
-            unsubscribe();
-            clearInterval(interval);
-        };
-    }, [navigation]);
-
-    const loadUserData = async () => {
-        const avatar = await AsyncStorage.getItem('profile_avatar');
-        setAvatarUri(avatar);
-        const savedSettings = await AsyncStorage.getItem('index_settings');
-        if (savedSettings) {
-            setIndexSettings(JSON.parse(savedSettings));
-        }
-        const savedVisibility = await AsyncStorage.getItem('amount_visibility');
-        if (savedVisibility !== null) {
-            setIsAmountVisible(savedVisibility === 'true');
+        // Load index settings
+        const settings = await AsyncStorage.getItem('index_settings');
+        if (settings) {
+            setIndexSettings(JSON.parse(settings));
+        } else {
+            // Default: show all indices
+            setIndexSettings({ usd: true, eur: true, btc: true, eth: true });
         }
     };
 
-    const toggleAmountVisibility = async () => {
-        const nextValue = !isAmountVisible;
-        setIsAmountVisible(nextValue);
-        await AsyncStorage.setItem('amount_visibility', nextValue.toString());
-    };
-
-    const fetchFinanceData = async (isBackground = false) => {
-        if (!isBackground) setIsLoadingFinance(true);
+    const loadFinanceData = async () => {
+        setIsLoadingFinance(true);
         try {
-            const [gold, financialRates] = await Promise.all([
+            const [gold, financial] = await Promise.all([
                 getGoldPrice(),
                 getFinancialRates()
             ]);
             setGoldPrice(gold);
-            setRates(financialRates);
+            setRates(financial);
         } catch (error) {
-            console.error(error);
+            console.error('Error loading finance data:', error);
         } finally {
-            if (!isBackground) setIsLoadingFinance(false);
+            setIsLoadingFinance(false);
         }
     };
 
-    // Calendar logic
-    const daysInMonth = useMemo(() => {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        const date = new Date(year, month, 1);
-        const days = [];
-        const startDay = date.getDay();
-        for (let i = 0; i < startDay; i++) days.push(null);
-        while (date.getMonth() === month) {
-            days.push(new Date(date));
-            date.setDate(date.getDate() + 1);
-        }
-        return days;
-    }, [currentDate]);
-
-    const dailySummaries = useMemo(() => {
-        const summaries: Record<string, DailySummary> = {};
-        transactions.forEach((tx) => {
-            const d = new Date(tx.date);
-            const key = d.toDateString();
-            if (!summaries[key]) summaries[key] = { date: d, income: 0, expense: 0 };
-            if (tx.type === 'income') summaries[key].income += tx.amount;
-            else summaries[key].expense += tx.amount;
-        });
-        return summaries;
-    }, [transactions]);
-
-    const changeMonth = (delta: number) => {
-        const newDate = new Date(currentDate);
-        newDate.setMonth(newDate.getMonth() + delta);
-        setCurrentDate(newDate);
-    };
+    const toggleAmountVisibility = () => setIsAmountVisible(prev => !prev);
+    const toggleExpand = () => setIsExpanded(prev => !prev);
 
     const currentSummary = useMemo(() => {
-        let inc = 0,
-            exp = 0;
-        transactions.forEach((tx) => {
-            const tDate = new Date(tx.date);
-            if (
-                tDate.getMonth() === currentDate.getMonth() &&
-                tDate.getFullYear() === currentDate.getFullYear()
-            ) {
-                if (tx.type === 'income') inc += tx.amount;
-                else exp += tx.amount;
+        const month = selectedDate.getMonth();
+        const year = selectedDate.getFullYear();
+        let income = 0;
+        let expense = 0;
+        transactions.forEach(tx => {
+            const date = new Date(tx.date);
+            if (date.getMonth() === month && date.getFullYear() === year) {
+                if (tx.type === 'income') income += tx.amount;
+                else if (tx.type === 'expense') expense += tx.amount;
             }
         });
-        return { income: inc, expense: exp };
-    }, [transactions, currentDate]);
-
-    const selectedDayTransactions = useMemo(() => {
-        return transactions.filter((tx) => isSameDay(new Date(tx.date), selectedDate));
+        return { income, expense };
     }, [transactions, selectedDate]);
 
     const netCashflow = currentSummary.income - currentSummary.expense;
 
-    const toggleExpand = () => {
-        if (isExpanded) {
-            // Collapsing: Reset to today
-            const today = new Date();
-            setSelectedDate(today);
-            setCurrentDate(today);
+    const lunarData = useMemo(() => getLunarDate(selectedDate), [selectedDate]);
+
+    const selectedDayTransactions = useMemo(() => {
+        return transactions.filter(tx => {
+            const d = new Date(tx.date);
+            return d.getDate() === selectedDate.getDate() &&
+                d.getMonth() === selectedDate.getMonth() &&
+                d.getFullYear() === selectedDate.getFullYear();
+        });
+    }, [transactions, selectedDate]);
+
+    // Generate calendar days for current month
+    const calendarDays = useMemo(() => {
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startingDayOfWeek = firstDay.getDay();
+
+        const days: Array<{ date: number | null; hasIncome: boolean; hasExpense: boolean }> = [];
+
+        // Add empty cells for days before the first day of the month
+        for (let i = 0; i < startingDayOfWeek; i++) {
+            days.push({ date: null, hasIncome: false, hasExpense: false });
         }
-        setIsExpanded(!isExpanded);
+
+        // Add all days of the month
+        for (let date = 1; date <= daysInMonth; date++) {
+            const dayTransactions = transactions.filter(tx => {
+                const d = new Date(tx.date);
+                return d.getDate() === date && d.getMonth() === month && d.getFullYear() === year;
+            });
+            const hasIncome = dayTransactions.some(tx => tx.type === 'income');
+            const hasExpense = dayTransactions.some(tx => tx.type === 'expense');
+            days.push({ date, hasIncome, hasExpense });
+        }
+
+        return days;
+    }, [selectedDate, transactions]);
+
+    const changeMonth = (direction: number) => {
+        const newDate = new Date(selectedDate);
+        newDate.setMonth(newDate.getMonth() + direction);
+        setSelectedDate(newDate);
     };
 
-    const renderCalendarGrid = () => (
-        <View style={{ width: '100%' }}>
-            <View style={styles.headerRowCalendar}>
-                <Text style={[styles.title, isDark && styles.textDark, { fontSize: 20 }]}>
-                    {language === 'Tiếng Việt'
-                        ? `Tháng ${currentDate.getMonth() + 1}, ${currentDate.getFullYear()}`
-                        : currentDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })}
-                </Text>
-                <View style={styles.monthButtons}>
+    const renderCalendarGrid = () => {
+        const weekDays = language === 'Tiếng Việt'
+            ? ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+            : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        const monthYear = selectedDate.toLocaleDateString(language === 'Tiếng Việt' ? 'vi-VN' : 'en-US', {
+            month: 'long',
+            year: 'numeric'
+        });
+
+        return (
+            <View style={{ width: '100%' }}>
+                {/* Month Navigation */}
+                <View style={styles.headerRowCalendar}>
                     <TouchableOpacity
                         style={[styles.monthButton, isDark && styles.monthButtonDark]}
                         onPress={() => changeMonth(-1)}
                     >
-                        <Ionicons name="chevron-back" size={20} color={isDark ? '#FFF' : '#374151'} />
+                        <Ionicons name="chevron-back" size={20} color={colors.primary} />
                     </TouchableOpacity>
+                    <Text style={[styles.monthYearLabel, isDark && styles.textDark]}>{monthYear}</Text>
                     <TouchableOpacity
                         style={[styles.monthButton, isDark && styles.monthButtonDark]}
                         onPress={() => changeMonth(1)}
                     >
-                        <Ionicons name="chevron-forward" size={20} color={isDark ? '#FFF' : '#374151'} />
+                        <Ionicons name="chevron-forward" size={20} color={colors.primary} />
                     </TouchableOpacity>
                 </View>
-            </View>
-            <View style={styles.weekDays}>
-                {t.days.map((d, i) => (
-                    <Text key={i} style={[styles.weekDay, isDark && styles.textLight]}>
-                        {d}
-                    </Text>
-                ))}
-            </View>
-            <View style={styles.daysGrid}>
-                {daysInMonth.map((date, index) => {
-                    if (!date)
-                        return <View key={`empty-${index}`} style={styles.dayCell} />;
-                    const summary = dailySummaries[date.toDateString()];
-                    const isSelected = isSameDay(date, selectedDate);
-                    const hasIncome = summary && summary.income > 0;
-                    const hasExpense = summary && summary.expense > 0;
 
-                    return (
-                        <TouchableOpacity
-                            key={date.toISOString()}
-                            style={styles.dayCell}
-                            onPress={() => {
-                                setSelectedDate(date);
-                                // Optional: collapse on select
-                                // toggleExpand(); 
-                            }}
-                        >
-                            <View
-                                style={[
-                                    styles.dayCircle,
-                                    isSelected && styles.dayCircleSelected,
-                                    isSelected && isDark && styles.dayCircleSelectedDark,
-                                ]}
+                {/* Week Days Header */}
+                <View style={styles.weekDays}>
+                    {weekDays.map((day, index) => (
+                        <Text key={index} style={styles.weekDay}>{day}</Text>
+                    ))}
+                </View>
+
+                {/* Calendar Grid */}
+                <View style={styles.daysGrid}>
+                    {calendarDays.map((day, index) => {
+                        const isSelected = day.date === selectedDate.getDate();
+                        const isToday = day.date === new Date().getDate() &&
+                            selectedDate.getMonth() === new Date().getMonth() &&
+                            selectedDate.getFullYear() === new Date().getFullYear();
+
+                        return (
+                            <TouchableOpacity
+                                key={index}
+                                style={styles.dayCell}
+                                onPress={() => {
+                                    if (day.date) {
+                                        const newDate = new Date(selectedDate);
+                                        newDate.setDate(day.date);
+                                        setSelectedDate(newDate);
+                                    }
+                                }}
+                                disabled={!day.date}
                             >
-                                <Text
-                                    style={[
-                                        styles.dayText,
-                                        isSelected && styles.dayTextSelected,
-                                        !isSelected && isDark && styles.textLight,
-                                    ]}
-                                >
-                                    {date.getDate()}
-                                </Text>
-                            </View>
-                            <View style={styles.indicators}>
-                                {hasIncome && <View style={[styles.dotIndicator, styles.incomeDot]} />}
-                                {hasExpense && <View style={[styles.dotIndicator, styles.expenseDot]} />}
-                            </View>
-                        </TouchableOpacity>
-                    );
-                })}
+                                {day.date && (
+                                    <>
+                                        <View style={[
+                                            styles.dayCircle,
+                                            isSelected && (isDark ? styles.dayCircleSelectedDark : styles.dayCircleSelected),
+                                            isToday && !isSelected && { borderWidth: 1, borderColor: colors.primary }
+                                        ]}>
+                                            <Text style={[
+                                                styles.dayText,
+                                                isDark && styles.textLight,
+                                                isSelected && styles.dayTextSelected
+                                            ]}>
+                                                {day.date}
+                                            </Text>
+                                        </View>
+                                        {(day.hasIncome || day.hasExpense) && (
+                                            <View style={styles.indicators}>
+                                                {day.hasIncome && <View style={[styles.dotIndicator, styles.incomeDot]} />}
+                                                {day.hasExpense && <View style={[styles.dotIndicator, styles.expenseDot]} />}
+                                            </View>
+                                        )}
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
             </View>
-        </View>
-    );
+        );
+    };
 
     return (
-        <View style={{ flex: 1 }}>
+        <ThemedView style={{ flex: 1 }}>
             <ScrollView
-                style={[styles.container, isDark && styles.containerDark]}
+                style={[styles.container, { backgroundColor: colors.background }]}
                 contentContainerStyle={styles.content}
             >
+
                 {/* Header Profile & Stats */}
                 <View style={styles.headerRow}>
                     <TouchableOpacity
@@ -615,7 +566,7 @@ export default function CalendarScreen({
 
             {/* Floating Action Buttons */}
             <FloatingButtons navigation={navigation} theme={theme} />
-        </View>
+        </ThemedView>
     );
 }
 
@@ -625,10 +576,9 @@ const daySize = (width - 92) / 7;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F9FAFB',
     },
     containerDark: {
-        backgroundColor: '#111827',
+        // backgroundColor: '#111827', // Handled by ThemedView
     },
     content: {
         padding: 24,
@@ -860,6 +810,11 @@ const styles = StyleSheet.create({
     },
     monthButtonDark: {
         backgroundColor: '#374151',
+    },
+    monthYearLabel: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#111827',
     },
     weekDays: {
         flexDirection: 'row',
