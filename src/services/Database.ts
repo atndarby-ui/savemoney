@@ -10,7 +10,9 @@ export class Database {
 
     static async init() {
         try {
-            this.db = await SQLite.openDatabaseAsync(DB_NAME);
+            if (!this.db) {
+                this.db = await SQLite.openDatabaseAsync(DB_NAME);
+            }
             await this.createTables();
             await this.migrateFromAsyncStorage();
         } catch (error) {
@@ -137,6 +139,7 @@ export class Database {
     // Transaction Methods
     static async getTransactions(): Promise<Transaction[]> {
         try {
+            if (!this.db) return [];
             const result = await this.db.getAllAsync<any>('SELECT * FROM transactions ORDER BY date DESC');
             return result.map(row => ({
                 ...row,
@@ -179,6 +182,7 @@ export class Database {
     // Category Methods
     static async getCategories(): Promise<Category[]> {
         try {
+            if (!this.db) return [];
             return await this.db.getAllAsync<Category>('SELECT * FROM categories');
         } catch (error) {
             console.error('getCategories error:', error);
@@ -212,6 +216,7 @@ export class Database {
     // Chat Methods
     static async getChatHistory(): Promise<Message[]> {
         try {
+            if (!this.db) return [];
             return await this.db.getAllAsync<Message>('SELECT role, text FROM chat_history ORDER BY id ASC');
         } catch (error) {
             console.error('getChatHistory error', error);
@@ -245,6 +250,7 @@ export class Database {
     // Metadata Methods
     static async getMetadata(key: string): Promise<string | null> {
         try {
+            if (!this.db) return null;
             const result = await this.db.getFirstAsync<{ value: string }>('SELECT value FROM metadata WHERE key = ?', [key]);
             return result ? result.value : null;
         } catch (error) {
@@ -255,6 +261,11 @@ export class Database {
 
     static async setMetadata(key: string, value: string) {
         try {
+            if (!this.db) {
+                // Try to init if missing? Or just log
+                console.warn('setMetadata: Database not initialized, skipping save for key:', key);
+                return;
+            }
             await this.db.runAsync('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)', [key, value]);
         } catch (error) {
             console.error('setMetadata error:', error);

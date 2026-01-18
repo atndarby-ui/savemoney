@@ -7,6 +7,8 @@ Notifications.setNotificationHandler({
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
     }),
 });
 
@@ -37,22 +39,43 @@ export const NotificationService = {
         return true;
     },
 
-    scheduleReminder: async (title: string, body: string, triggerDate: Date) => {
-        try {
-            const id = await Notifications.scheduleNotificationAsync({
-                content: {
-                    title: title,
-                    body: body,
-                    sound: true,
-                    data: { data: 'goes here' },
-                },
-                trigger: triggerDate,
-            });
-            return id;
-        } catch (error) {
-            console.error("Error scheduling notification:", error);
-            return null;
+    scheduleReminder: async (
+        title: string,
+        body: string,
+        triggerDate: Date,
+        soundUri?: string,
+        imageUri?: string
+    ): Promise<string> => {
+        const trigger = triggerDate.getTime() - Date.now();
+        if (trigger <= 0) return '';
+
+        const content: Notifications.NotificationContentInput = {
+            title,
+            body,
+            sound: true,
+            data: { imageUri },
+        };
+
+        if (soundUri) {
+            content.sound = soundUri;
         }
+
+        // Attach image if provided (Note: Native implementation for attachments varies)
+        if (imageUri && Platform.OS === 'ios') {
+            content.attachments = [{
+                uri: imageUri,
+                identifier: 'reminder-image',
+                type: 'image'
+            } as any];
+        }
+
+        return await Notifications.scheduleNotificationAsync({
+            content,
+            trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.DATE,
+                date: triggerDate,
+            } as unknown as Notifications.NotificationTriggerInput,
+        });
     },
 
     cancelNotification: async (id: string) => {

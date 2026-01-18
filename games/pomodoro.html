@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ZenFocus Pomodoro 2026</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #EC4899;
+            --primary-glow: rgba(236, 72, 153, 0.4);
+            --bg: #0F172A;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text: #F8FAFC;
+            --text-dim: #94A3B8;
+            --accent: #A855F7;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg);
+            background: radial-gradient(circle at top right, #1E1B4B, #0F172A);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Abstract Background Elements */
+        .blob {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            filter: blur(80px);
+            opacity: 0.15;
+            border-radius: 50%;
+            z-index: -1;
+            animation: move 20s infinite alternate;
+        }
+
+        @keyframes move {
+            from {
+                transform: translate(-20%, -20%);
+            }
+
+            to {
+                transform: translate(20%, 20%);
+            }
+        }
+
+        h1 {
+            font-weight: 800;
+            font-size: 2rem;
+            letter-spacing: -0.05em;
+            margin-bottom: 2rem;
+            background: linear-gradient(to bottom right, #fff, var(--text-dim));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .timer-display {
+            position: relative;
+            width: 280px;
+            height: 280px;
+            margin: 0 auto 3rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .progress-ring {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform: rotate(-90deg);
+        }
+
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.35s;
+            transform-origin: 50% 50%;
+            stroke: var(--primary);
+            filter: drop-shadow(0 0 10px var(--primary-glow));
+        }
+
+        .time {
+            font-size: 5rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.02em;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+            background: var(--card-bg);
+            padding: 6px;
+            border-radius: 20px;
+            margin-bottom: 3rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            color: var(--text-dim);
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border-radius: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .mode-btn.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text);
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+        }
+
+        .btn-main {
+            width: 80px;
+            height: 80px;
+            border-radius: 30px;
+            border: none;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 10px 30px var(--primary-glow);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .btn-main:active {
+            transform: scale(0.92);
+        }
+
+        .btn-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 20px;
+            border: none;
+            background: var(--card-bg);
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-icon:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        svg {
+            fill: currentColor;
+        }
+
+        .status-badge {
+            margin-top: 2rem;
+            padding: 8px 16px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: #10B981;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.5s ease;
+        }
+
+        .status-active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Subtle ripple animation for play button when active */
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 15px rgba(236, 72, 153, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(236, 72, 153, 0);
+            }
+        }
+
+        .btn-main.playing {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="blob"></div>
+
+    <div class="container">
+        <h1>ZenFocus</h1>
+
+        <div class="timer-display">
+            <svg class="progress-ring" width="280" height="280">
+                <circle class="progress-ring__bg" stroke="rgba(255, 255, 255, 0.05)" stroke-width="10"
+                    fill="transparent" r="130" cx="140" cy="140" />
+                <circle class="progress-ring__circle" stroke-width="10" stroke-linecap="round" fill="transparent"
+                    r="130" cx="140" cy="140" stroke-dasharray="816.8" stroke-dashoffset="0" />
+            </svg>
+            <div class="time" id="timer">25:00</div>
+        </div>
+
+        <div class="mode-selector">
+            <button class="mode-btn active" onclick="setMode('work')">Work</button>
+            <button class="mode-btn" onclick="setMode('short')">Short Break</button>
+            <button class="mode-btn" onclick="setMode('long')">Long Break</button>
+        </div>
+
+        <div class="controls">
+            <button class="btn-icon" onclick="resetTimer()">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                    <path
+                        d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                </svg>
+            </button>
+
+            <button class="btn-main" id="playBtn" onclick="toggleTimer()">
+                <svg id="playIcon" viewBox="0 0 24 24" width="36" height="36">
+                    <path d="M8 5v14l11-7z" />
+                </svg>
+                <svg id="pauseIcon" viewBox="0 0 24 24" width="36" height="36" style="display:none;">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+            </button>
+
+            <button class="btn-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                    <path
+                        d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm-5-9h10v2H7v-2z" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="status-badge" id="statusBadge">Deep focus session</div>
+    </div>
+
+    <audio id="finishSound" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"
+        preload="auto"></audio>
+
+    <script>
+        let timeLeft = 25 * 60;
+        let totalTime = 25 * 60;
+        let timerId = null;
+        let currentMode = 'work';
+
+        const timerDisplay = document.getElementById('timer');
+        const playIcon = document.getElementById('playIcon');
+        const pauseIcon = document.getElementById('pauseIcon');
+        const playBtn = document.getElementById('playBtn');
+        const circle = document.querySelector('.progress-ring__circle');
+        const radius = circle.r.baseVal.value;
+        const circumference = radius * 2 * Math.PI;
+        const statusBadge = document.getElementById('statusBadge');
+        const finishSound = document.getElementById('finishSound');
+
+        circle.style.strokeDasharray = `${circumference} ${circumference}`;
+        circle.style.strokeDashoffset = 0;
+
+        const modes = {
+            work: { time: 25, label: 'Deep focus session', color: '#EC4899' },
+            short: { time: 5, label: 'Time to breathe', color: '#10B981' },
+            long: { time: 15, label: 'Extended relaxation', color: '#3B82F6' }
+        };
+
+        function setProgress(percent) {
+            const offset = circumference - (percent / 100) * circumference;
+            circle.style.strokeDashoffset = offset;
+        }
+
+        function updateDisplay() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            const percent = (timeLeft / totalTime) * 100;
+            setProgress(percent);
+
+            document.title = `${timerDisplay.textContent} - ZenFocus`;
+        }
+
+        function toggleTimer() {
+            if (timerId) {
+                clearInterval(timerId);
+                timerId = null;
+                playIcon.style.display = 'block';
+                pauseIcon.style.display = 'none';
+                playBtn.classList.remove('playing');
+                statusBadge.classList.remove('status-active');
+            } else {
+                // Pre-unlock audio for mobile browsers
+                finishSound.play().then(() => {
+                    finishSound.pause();
+                    finishSound.currentTime = 0;
+                }).catch(e => console.log("Audio waiting for user interaction"));
+
+                timerId = setInterval(() => {
+                    timeLeft--;
+                    updateDisplay();
+                    if (timeLeft <= 0) {
+                        clearInterval(timerId);
+                        timerId = null;
+
+                        // Play loud finish sound
+                        finishSound.play();
+
+                        // Visual effect
+                        timerDisplay.style.transform = 'scale(1.2)';
+                        timerDisplay.style.color = '#10B981';
+
+                        statusBadge.textContent = 'Session Complete! 🔔';
+                        statusBadge.classList.add('status-active');
+
+                        setTimeout(() => {
+                            timerDisplay.style.transform = 'scale(1)';
+                            timerDisplay.style.color = 'var(--text)';
+                            resetTimer();
+                        }, 5000);
+                    }
+                }, 1000);
+                playIcon.style.display = 'none';
+                pauseIcon.style.display = 'block';
+                playBtn.classList.add('playing');
+                statusBadge.classList.add('status-active');
+                statusBadge.textContent = modes[currentMode].label;
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(timerId);
+            timerId = null;
+            timeLeft = modes[currentMode].time * 60;
+            totalTime = timeLeft;
+            updateDisplay();
+            playIcon.style.display = 'block';
+            pauseIcon.style.display = 'none';
+            playBtn.classList.remove('playing');
+            statusBadge.classList.remove('status-active');
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update Colors
+            const color = modes[mode].color;
+            document.documentElement.style.setProperty('--primary', color);
+            document.documentElement.style.setProperty('--primary-glow', color + '66');
+            statusBadge.style.color = color;
+            statusBadge.style.borderColor = color + '33';
+            statusBadge.style.background = color + '1A';
+
+            resetTimer();
+        }
+
+        updateDisplay();
+    </script>
+</body>
+
+</html>

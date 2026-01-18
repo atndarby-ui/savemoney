@@ -10,12 +10,17 @@ import {
     Image,
     Switch,
     Alert,
-    ActivityIndicator
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform
 } from 'react-native';
+import CalendarScreen from './CalendarScreen';
+import RNDateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Transaction, Category } from '../types';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+// import * as DocumentPicker from 'expo-document-picker'; // Removed to prevent crash on non-dev builds
 import { auth } from '../config/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, deleteUser, User } from 'firebase/auth';
 import { SyncService } from '../services/SyncService';
@@ -40,7 +45,7 @@ interface ProfileScreenProps {
 
 interface Goal {
     id: string;
-    type: 'future' | 'debt' | 'plan' | 'subscription'; // Added subscription
+    type: 'future' | 'debt' | 'plan' | 'subscription' | 'task';
     title: string;
     targetAmount: number;
     currentAmount: number;
@@ -48,8 +53,37 @@ interface Goal {
     description?: string;
     completed: boolean;
     reminderEnabled?: boolean;
-    reminderOffset?: number;
+    reminderOffset?: number; // minutes
+    reminderExactTime?: string; // ISO string for exact time
     notificationId?: string;
+    customSoundUri?: string;
+
+    // Subscription specific
+    billingCycle?: 'monthly' | 'yearly';
+    renewalDate?: string;
+    serviceLogo?: string;
+    price?: number;
+
+    // Debt specific
+    partnerName?: string;
+    debtAmount?: number;
+    debtType?: 'lending' | 'borrowing';
+    dueDate?: string;
+    currency?: string;
+    proofImage?: string;
+
+    // Task specific
+    priority?: 'low' | 'medium' | 'high';
+    referenceImage?: string;
+    subtasks?: { id: string, title: string, time?: string, completed: boolean }[];
+    targetDate?: string;
+
+    // Plan specific
+    frequency?: 'daily' | 'weekly' | 'custom';
+    weeklyDays?: number[]; // 0=Sunday, 1=Monday, etc.
+    customInterval?: number; // days interval for custom
+    customStartDate?: string; // DD/MM/YYYY - when to start the custom interval
+    inspirationImage?: string;
 }
 
 interface Tool {
@@ -114,16 +148,58 @@ const translations = {
         // Reminders Strings
         addGoal: 'Thêm nhắc nhở', // Renamed
         editGoal: 'Sửa nhắc nhở', // Renamed
-        goalType: 'Loại nhắc nhở', // Renamed
-        goalTitle: 'Tên nhắc nhở', // Renamed
+        deleteGoal: 'Xóa nhắc nhở',
+        deleteGoalConfirm: 'Bạn có chắc chắn muốn xóa nhắc nhở này không?',
+        goalType: '1. Loại nhắc nhở', // Added Numbering
+        goalTitle: '2. Tên nhắc nhở', // Added Numbering
         goalAmount: 'Số tiền',
         goalCurrent: 'Hiện có',
         goalDeadline: 'Hạn chót / Kỳ hạn',
         goalDesc: 'Mô tả',
         typeFuture: 'Tương lai',
-        typeDebt: 'Nợ',
+        typeDebt: 'Khoản nợ',
         typePlan: 'Kế hoạch',
-        typeSubscription: 'Gói đăng ký', // Added
+        typeSubscription: 'Gói đăng ký',
+        typeTask: 'Nhiệm vụ',
+
+        // New Fields & Titles
+        subscriptionTitle: 'Thêm gói đăng ký',
+        debtTitle: 'Ghi chú khoản nợ',
+        taskTitle: 'Thiết lập nhiệm vụ',
+        planTitle: 'Lên kế hoạch',
+
+        inputService: 'Tên dịch vụ',
+        inputCycle: 'Chu kỳ thanh toán',
+        cycleMonthly: 'Hàng tháng',
+        cycleYearly: 'Hàng năm',
+        inputRenewal: 'Ngày gia hạn',
+        uploadLogo: 'Tải logo dịch vụ',
+
+        inputPartner: 'Tên đối tác/người nợ',
+        inputDebtAmount: 'Số tiền nợ',
+        inputProof: 'Ảnh bằng chứng',
+
+        inputTaskTitle: 'Tiêu đề công việc',
+        inputPriority: 'Độ ưu tiên',
+        prioLow: 'Thấp',
+        prioMedium: 'Trung bình',
+        prioHigh: 'Cao',
+        uploadRef: 'Ảnh tham khảo',
+        taskDetails: 'Chi tiết công việc',
+        addSubtask: 'Thêm nhiệm vụ con',
+        subtaskPlaceholder: 'Nhập nhiệm vụ con...',
+
+        inputPlanGoal: 'Mục tiêu chính',
+        inputFrequency: 'Tần suất',
+        freqDaily: 'Hàng ngày',
+        freqWeekly: 'Hàng tuần',
+        freqCustom: 'Tùy chỉnh',
+        selectDays: 'Chọn ngày trong tuần',
+        customDays: 'Số ngày',
+        everyXDays: 'Mỗi X ngày',
+        startDate: 'Ngày bắt đầu',
+        uploadInspo: 'Ảnh cảm hứng',
+
         // Notification Strings
         reminderEnable: 'Bật nhắc nhở',
         reminderTime: 'Thời gian nhắc',
@@ -135,6 +211,8 @@ const translations = {
         allowNotif: 'Cho phép thông báo',
         sound: 'Âm thanh',
         soundDefault: 'Mặc định',
+        pickSound: 'Chọn từ tệp...',
+        reminderExact: 'Giờ cụ thể',
         // Tools Strings
         compoundInterest: 'Tính lãi kép',
         principal: 'Vốn ban đầu',
@@ -143,7 +221,8 @@ const translations = {
         years: 'Số năm',
         calculate: 'Tính toán',
         futureValue: 'Giá trị tương lai',
-        totalInterest: 'Tổng lãi tiền gửi',
+        totalInterest: 'Tổng lãi nhận được',
+        totalInvested: 'Tổng vốn đã đóng',
         toolDesc_compound: 'Tính toán sức mạnh của lãi suất kép theo thời gian',
         // Dynamic Tool Strings
         addTool: 'Thêm ứng dụng',
@@ -177,6 +256,8 @@ const translations = {
         soundAurora: 'Aurora',
         soundDigital: 'Digital',
         soundElegant: 'Elegant',
+        customSoundUriInput: 'Đường dẫn âm thanh (URI)',
+        manualUriPlaceholder: 'file://... hoặc assets/...',
     },
     'English': {
         account: 'ACCOUNT',
@@ -229,8 +310,10 @@ const translations = {
         // Reminders Strings
         addGoal: 'Add Reminder', // Renamed
         editGoal: 'Edit Reminder', // Renamed
-        goalType: 'Type',
-        goalTitle: 'Title',
+        deleteGoal: 'Delete Reminder',
+        deleteGoalConfirm: 'Are you sure you want to delete this reminder?',
+        goalType: '1. Reminder Type',
+        goalTitle: '2. Reminder Title',
         goalAmount: 'Amount',
         goalCurrent: 'Current',
         goalDeadline: 'Deadline / Cycle',
@@ -238,7 +321,47 @@ const translations = {
         typeFuture: 'Future',
         typeDebt: 'Debt',
         typePlan: 'Plan',
-        typeSubscription: 'Subscription', // Added
+        typeSubscription: 'Subscription',
+        typeTask: 'Task',
+
+        // New Fields & Titles
+        subscriptionTitle: 'Add Subscription',
+        debtTitle: 'Record Debt',
+        taskTitle: 'Setup Task',
+        planTitle: 'Create Plan',
+
+        inputService: 'Service Name',
+        inputCycle: 'Billing Cycle',
+        cycleMonthly: 'Monthly',
+        cycleYearly: 'Yearly',
+        inputRenewal: 'Renewal Date',
+        uploadLogo: 'Upload Service Logo',
+
+        inputPartner: 'Partner/Debtor Name',
+        inputDebtAmount: 'Debt Amount',
+        inputProof: 'Proof Image',
+
+        inputTaskTitle: 'Task Title',
+        inputPriority: 'Priority',
+        prioLow: 'Low',
+        prioMedium: 'Medium',
+        prioHigh: 'High',
+        uploadRef: 'Reference Image',
+        taskDetails: 'Task Details',
+        addSubtask: 'Add Subtask',
+        subtaskPlaceholder: 'Enter subtask...',
+
+        inputPlanGoal: 'Main Goal',
+        inputFrequency: 'Frequency',
+        freqDaily: 'Daily',
+        freqWeekly: 'Weekly',
+        freqCustom: 'Custom',
+        selectDays: 'Select days of week',
+        customDays: 'Days interval',
+        everyXDays: 'Every X days',
+        startDate: 'Start Date',
+        uploadInspo: 'Inspiration Image',
+
         // Notification Strings
         reminderEnable: 'Enable Reminder',
         reminderTime: 'Remind me',
@@ -250,6 +373,8 @@ const translations = {
         allowNotif: 'Allow Notifications',
         sound: 'Sound',
         soundDefault: 'Default',
+        pickSound: 'Pick from file...',
+        reminderExact: 'Exact Time',
         // Tools Strings
         compoundInterest: 'Compound Interest',
         principal: 'Principal',
@@ -259,6 +384,7 @@ const translations = {
         calculate: 'Calculate',
         futureValue: 'Future Value',
         totalInterest: 'Total Interest',
+        totalInvested: 'Total Invested',
         toolDesc_compound: 'Calculate the power of compound interest over time',
         // Dynamic Tool Strings
         addTool: 'Add App',
@@ -292,6 +418,8 @@ const translations = {
         soundAurora: 'Aurora',
         soundDigital: 'Digital',
         soundElegant: 'Elegant',
+        customSoundUriInput: 'Custom Sound URI',
+        manualUriPlaceholder: 'file://... or assets/...',
     },
 };
 
@@ -337,17 +465,55 @@ export default function ProfileScreen({
     const [goals, setGoals] = useState<Goal[]>([]);
     const [isGoalModalVisible, setIsGoalModalVisible] = useState(false);
     const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
-    const [goalType, setGoalType] = useState<Goal['type']>('future');
+    const [goalType, setGoalType] = useState<Goal['type']>('subscription'); // Default to subscription
+
+    // Common
     const [goalTitle, setGoalTitle] = useState('');
     const [goalAmount, setGoalAmount] = useState('');
     const [goalCurrent, setGoalCurrent] = useState('');
     const [goalDeadline, setGoalDeadline] = useState('');
     const [goalDesc, setGoalDesc] = useState('');
 
+    // Specific Fields
+    // Subscription
+    const [subBillingCycle, setSubBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+    const [subServiceLogo, setSubServiceLogo] = useState<string | null>(null);
+
+    // Debt
+    const [debtPartner, setDebtPartner] = useState('');
+    const [debtOrCredit, setDebtOrCredit] = useState<'lending' | 'borrowing'>('lending'); // 'lending' = you lent, 'borrowing' = you borrowed
+    const [debtProofImg, setDebtProofImg] = useState<string | null>(null);
+
+    // Task
+    const [taskPriority, setTaskPriority] = useState<'low' | 'medium' | 'high'>('medium');
+    const [taskRefImg, setTaskRefImg] = useState<string | null>(null);
+    const [subtasks, setSubtasks] = useState<{ id: string, title: string, time?: string, completed: boolean }[]>([]);
+    const [newSubtask, setNewSubtask] = useState('');
+    const [newSubtaskTime, setNewSubtaskTime] = useState('');
+
+    // Plan
+    const [planFrequency, setPlanFrequency] = useState<'daily' | 'weekly' | 'custom'>('daily');
+    const [planWeeklyDays, setPlanWeeklyDays] = useState<number[]>([1]); // Default Monday
+    const [planCustomInterval, setPlanCustomInterval] = useState<number>(1);
+    const [planCustomStartDate, setPlanCustomStartDate] = useState<string>('');
+    const [planInspoImg, setPlanInspoImg] = useState<string | null>(null);
+
+    // Date Picker State
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');
+    const [datePickerTarget, setDatePickerTarget] = useState<'deadline' | 'renewal' | 'dueDate' | 'customStart' | 'subtaskTime'>('deadline');
+    const [tempDate, setTempDate] = useState(new Date());
+
+
     // Notification Fields in Reminder Modal
     const [reminderEnabled, setReminderEnabled] = useState(true);
-    const [reminderOffset, setReminderOffset] = useState<number>(24 * 60); // default 24h in minutes
-    const [customOffsetHours, setCustomOffsetHours] = useState('');
+    const [reminderOffset, setReminderOffset] = useState<number>(0); // 0 means 'On Day' effectively if logic handles it, or use specific flag
+
+    // New Notification State
+    const [reminderType, setReminderType] = useState<'offset' | 'exact'>('offset');
+    const [exactTime, setExactTime] = useState(new Date());
+    const [soundType, setSoundType] = useState<'default' | 'custom'>('default');
+    const [customSound, setCustomSound] = useState<{ name: string, uri: string } | null>(null);
 
     // Notification Settings Modal
     const [isNotifSettingsVisible, setIsNotifSettingsVisible] = useState(false);
@@ -362,7 +528,7 @@ export default function ProfileScreen({
     const [cpMonthly, setCpMonthly] = useState('');
     const [cpRate, setCpRate] = useState('');
     const [cpYears, setCpYears] = useState('');
-    const [cpResult, setCpResult] = useState<{ futureValue: number; totalInterest: number } | null>(null);
+    const [cpResult, setCpResult] = useState<{ futureValue: number; totalInterest: number; totalInvested: number } | null>(null);
 
     // Dynamic Tools State
     const [dynamicTools, setDynamicTools] = useState<Tool[]>([]);
@@ -590,47 +756,106 @@ export default function ProfileScreen({
 
 
     const handleSaveGoal = async () => {
-        if (!goalTitle || !goalAmount) {
-            Alert.alert('Error', 'Please enter title and target amount');
+        // Validation per type
+        if (!goalTitle && !debtPartner) {
+            Alert.alert('Error', 'Please enter a title/name');
             return;
         }
 
         let notifId;
+        let triggerDate: Date | null = null;
+
         if (reminderEnabled && goalDeadline) {
-            const triggerDate = NotificationService.calculateTriggerDate(goalDeadline, reminderOffset);
+            if (reminderType === 'exact') {
+                // Parse deadline date string (DD/MM/YYYY)
+                const parts = goalDeadline.split('/');
+                if (parts.length === 3) {
+                    const day = parseInt(parts[0], 10);
+                    const month = parseInt(parts[1], 10) - 1;
+                    const year = parseInt(parts[2], 10);
+                    const baseDate = new Date(year, month, day);
+
+                    // Apply exact time hours/minutes
+                    triggerDate = new Date(baseDate);
+                    triggerDate.setHours(exactTime.getHours(), exactTime.getMinutes(), 0, 0);
+                }
+            } else {
+                triggerDate = NotificationService.calculateTriggerDate(goalDeadline, reminderOffset);
+            }
+
             if (triggerDate && triggerDate > new Date()) {
-                // Cancel old one if editing
+                // Cancel old one
                 if (editingGoal?.notificationId) {
                     await NotificationService.cancelNotification(editingGoal.notificationId);
                 }
 
-                notifId = await NotificationService.scheduleReminder(
-                    t.goalsTitle + ': ' + goalTitle,
-                    `${t.goalAmount}: ${formatLargeNum(parseFloat(goalAmount))}`,
-                    triggerDate
-                );
+                // Title based on type
+                let notifTitle = t.goalsTitle;
+                if (goalType === 'debt') notifTitle = `${t.typeDebt}: ${debtPartner}`;
+                else if (goalType === 'task') notifTitle = `${t.typeTask}: ${goalTitle}`;
+                else if (goalType === 'subscription') notifTitle = `${t.typeSubscription}: ${goalTitle}`;
+                else if (goalType === 'plan') notifTitle = `${t.typePlan}: ${goalTitle}`;
 
-                if (!notifId) {
-                    Alert.alert('Notification Error', 'Could not schedule notification. Please check permissions.');
+                // Detailed Body
+                let notifBody = `${t.goalAmount}: ${formatLargeNum(parseFloat(goalAmount))}`;
+                if (goalType === 'task' && subtasks.length > 0) {
+                    const taskLines = subtasks.map(s => `• ${s.time ? `[${s.time}] ` : ''}${s.title}`).join('\n');
+                    notifBody = `${t.taskDetails}:\n${taskLines}`;
                 }
+
+                // Reference Image
+                const notifImage = goalType === 'task' ? taskRefImg :
+                    goalType === 'debt' ? debtProofImg :
+                        goalType === 'subscription' ? subServiceLogo :
+                            goalType === 'plan' ? planInspoImg : undefined;
+
+                notifId = await NotificationService.scheduleReminder(
+                    notifTitle,
+                    notifBody,
+                    triggerDate,
+                    soundType === 'custom' ? customSound?.uri : undefined,
+                    notifImage || undefined
+                );
             }
         } else if (editingGoal?.notificationId) {
-            // If disabled but had one previously
             await NotificationService.cancelNotification(editingGoal.notificationId);
         }
 
         const newGoal: Goal = {
             id: editingGoal ? editingGoal.id : Date.now().toString(),
             type: goalType,
-            title: goalTitle,
+            title: goalTitle || debtPartner || 'Untitled', // Fallback
             targetAmount: parseFloat(goalAmount) || 0,
             currentAmount: parseFloat(goalCurrent) || 0,
             deadline: goalDeadline,
             description: goalDesc,
-            completed: false,
+            completed: editingGoal ? editingGoal.completed : false,
             reminderEnabled: reminderEnabled,
-            reminderOffset: reminderOffset,
+            reminderOffset: reminderType === 'offset' ? reminderOffset : undefined,
+            reminderExactTime: reminderType === 'exact' ? exactTime.toISOString() : undefined,
             notificationId: notifId || undefined,
+            customSoundUri: (reminderEnabled && soundType === 'custom') ? customSound?.uri : undefined,
+
+            // Subscription specific
+            billingCycle: goalType === 'subscription' ? subBillingCycle : undefined,
+            serviceLogo: goalType === 'subscription' ? (subServiceLogo || undefined) : undefined,
+
+            // Debt specific
+            partnerName: goalType === 'debt' ? debtPartner : undefined,
+            debtType: goalType === 'debt' ? debtOrCredit : undefined,
+            proofImage: goalType === 'debt' ? (debtProofImg || undefined) : undefined,
+
+            // Task specific
+            priority: goalType === 'task' ? taskPriority : undefined,
+            referenceImage: goalType === 'task' ? (taskRefImg || undefined) : undefined,
+            subtasks: goalType === 'task' ? subtasks : undefined,
+
+            // Plan specific
+            frequency: goalType === 'plan' ? planFrequency : undefined,
+            weeklyDays: goalType === 'plan' && planFrequency === 'weekly' ? planWeeklyDays : undefined,
+            customInterval: goalType === 'plan' && planFrequency === 'custom' ? planCustomInterval : undefined,
+            customStartDate: goalType === 'plan' && planFrequency === 'custom' ? planCustomStartDate : undefined,
+            inspirationImage: goalType === 'plan' ? (planInspoImg || undefined) : undefined,
         };
 
         let newGoals;
@@ -648,12 +873,12 @@ export default function ProfileScreen({
 
     const handleDeleteGoal = async (id: string) => {
         Alert.alert(
-            t.deleteCategory,
-            t.deleteAccountConfirm,
+            t.deleteGoal,
+            t.deleteGoalConfirm,
             [
                 { text: t.cancel, style: 'cancel' },
                 {
-                    text: t.deleteCategory,
+                    text: t.deleteGoal,
                     style: 'destructive',
                     onPress: async () => {
                         const goalToDelete = goals.find(g => g.id === id);
@@ -678,20 +903,184 @@ export default function ProfileScreen({
         setGoalDeadline(goal.deadline || '');
         setGoalDesc(goal.description || '');
         setReminderEnabled(goal.reminderEnabled ?? true);
-        setReminderOffset(goal.reminderOffset ?? 24 * 60);
+
+        // Load specific fields
+        if (goal.type === 'subscription') {
+            setSubBillingCycle(goal.billingCycle || 'monthly');
+            setSubServiceLogo(goal.serviceLogo || null);
+        } else if (goal.type === 'debt') {
+            setDebtPartner(goal.partnerName || '');
+            setDebtOrCredit(goal.debtType || 'lending');
+            setDebtProofImg(goal.proofImage || null);
+        } else if (goal.type === 'task') {
+            setTaskPriority(goal.priority || 'medium');
+            setTaskRefImg(goal.referenceImage || null);
+            setSubtasks(goal.subtasks || []);
+        } else if (goal.type === 'plan') {
+            setPlanFrequency(goal.frequency || 'daily');
+            setPlanWeeklyDays(goal.weeklyDays || [1]);
+            setPlanCustomInterval(goal.customInterval || 1);
+            setPlanCustomStartDate(goal.customStartDate || '');
+            setPlanInspoImg(goal.inspirationImage || null);
+        }
+
+        // Set Notification State
+        setReminderEnabled(goal.reminderEnabled !== false); // default true
+
+        if (goal.reminderExactTime) {
+            setReminderType('exact');
+            setExactTime(new Date(goal.reminderExactTime));
+        } else {
+            setReminderType('offset');
+            setReminderOffset(goal.reminderOffset || 0);
+        }
+
+        if (goal.customSoundUri) {
+            setSoundType('custom');
+            // We don't store the name, so just show "Custom Sound" or extract filename
+            const name = goal.customSoundUri.split('/').pop() || 'Custom Sound';
+            setCustomSound({ name, uri: goal.customSoundUri });
+        } else {
+            setSoundType('default');
+            setCustomSound(null);
+        }
         setIsGoalModalVisible(true);
     };
 
     const resetGoalForm = () => {
         setEditingGoal(null);
-        setGoalType('future');
+        // Don't reset type here, let it be passed or default
         setGoalTitle('');
         setGoalAmount('');
         setGoalCurrent('');
         setGoalDeadline('');
         setGoalDesc('');
+
+        setSubBillingCycle('monthly');
+        setSubServiceLogo(null);
+        setDebtPartner('');
+        setDebtOrCredit('lending');
+        setDebtProofImg(null);
+        setTaskPriority('medium');
+        setTaskRefImg(null);
+        setSubtasks([]);
+        setNewSubtask('');
+        setPlanFrequency('daily');
+        setPlanWeeklyDays([1]);
+        setPlanCustomInterval(1);
+        setPlanCustomStartDate('');
+        setPlanInspoImg(null);
+
+        // Reset Notif
         setReminderEnabled(true);
-        setReminderOffset(24 * 60);
+        setReminderType('offset');
+        setReminderOffset(0);
+        setExactTime(new Date());
+        setSoundType('default');
+        setCustomSound(null);
+    };
+
+    const pickGoalImage = async (setter: (uri: string) => void) => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            quality: 1,
+        });
+
+        if (!result.canceled) {
+            setter(result.assets[0].uri);
+        }
+    };
+
+    const handleDateChange = (event: any, selectedDate?: Date) => {
+        if (event.type === 'dismissed') {
+            setShowDatePicker(false);
+            return;
+        }
+
+        const currentDate = selectedDate || tempDate;
+        setShowDatePicker(Platform.OS === 'ios'); // Keep open on iOS, close on Android
+        setTempDate(currentDate);
+
+        if (Platform.OS !== 'ios') {
+            // Android: set immediately and close
+            const formatted = datePickerMode === 'time'
+                ? currentDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+                : currentDate.toLocaleDateString('en-GB'); // DD/MM/YYYY
+
+            // Set the appropriate field based on target
+            if (datePickerTarget === 'customStart') {
+                setPlanCustomStartDate(formatted);
+            } else {
+                // renewal, dueDate, and deadline all use goalDeadline
+                setGoalDeadline(formatted);
+            }
+            setShowDatePicker(false);
+        }
+    };
+
+    // Formatting Helper
+    const formatNumberInput = (numStr: string) => {
+        if (!numStr) return '';
+        return numStr.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    };
+
+    const handleAmountChange = (text: string) => {
+        const raw = text.replace(/\./g, '');
+        setGoalAmount(raw);
+    };
+
+    const pickCustomSound = async () => {
+        try {
+            // Dynamic import to prevent crash at startup
+            const DocumentPicker = require('expo-document-picker');
+
+            if (!DocumentPicker || !DocumentPicker.getDocumentAsync) {
+                throw new Error('Module not available');
+            }
+
+            const result = await DocumentPicker.getDocumentAsync({
+                type: 'audio/*',
+                copyToCacheDirectory: true
+            });
+
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                setCustomSound({
+                    name: result.assets[0].name,
+                    uri: result.assets[0].uri
+                });
+            }
+        } catch (err) {
+            console.error('Error picking sound:', err);
+            Alert.alert(
+                language === 'Tiếng Việt' ? 'Không hỗ trợ' : 'Not Supported',
+                language === 'Tiếng Việt'
+                    ? 'Tính năng chọn tệp yêu cầu Development Build. Hãy dán đường dẫn (URI) thủ công bên dưới.'
+                    : 'File picking requires a Development Build. Please paste the URI manually below.'
+            );
+        }
+    };
+
+    // Time Picker independent of Date Picker
+    const [showExactTimePicker, setShowExactTimePicker] = useState(false);
+
+    const handleExactTimeChange = (event: any, selectedDate?: Date) => {
+        if (event.type === 'dismissed') {
+            setShowExactTimePicker(false);
+            return;
+        }
+        const currentDate = selectedDate || exactTime;
+        setShowExactTimePicker(Platform.OS === 'ios');
+        setExactTime(currentDate);
+
+        if (datePickerTarget === 'subtaskTime') {
+            const formattedTime = currentDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            setNewSubtaskTime(formattedTime);
+        }
+
+        if (Platform.OS !== 'ios') {
+            setShowExactTimePicker(false);
+        }
     };
 
     const handleNotificationSettings = async () => {
@@ -700,30 +1089,64 @@ export default function ProfileScreen({
         setIsNotifSettingsVisible(true);
     };
 
-    // Tools Handlers
+    const formatInputDots = (val: string) => {
+        if (!val) return '';
+        // Remove all non-numeric and existing dots
+        const num = val.replace(/\./g, '').replace(/[^0-9]/g, '');
+        if (!num) return '';
+        // Add dots every 3 digits
+        return num.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    };
+
+    const parseCurrencyInput = (val: string) => {
+        return parseFloat(val.replace(/\./g, '')) || 0;
+    };
+
     const calculateCompoundInterest = () => {
-        const P = parseFloat(cpPrincipal) || 0;
-        const PMT = parseFloat(cpMonthly) || 0;
-        const r = (parseFloat(cpRate) || 0) / 100;
+        const P = parseCurrencyInput(cpPrincipal);
+        const PMT = parseCurrencyInput(cpMonthly);
+        const rateInput = parseFloat(cpRate);
         const t = parseFloat(cpYears) || 0;
         const n = 12; // monthly compounding
 
-        if (t === 0) return;
+        if (t <= 0) {
+            Alert.alert(
+                language === 'Tiếng Việt' ? 'Thông tin thiếu' : 'Missing Info',
+                language === 'Tiếng Việt' ? 'Vui lòng nhập số năm đầu tư.' : 'Please enter the number of years.'
+            );
+            return;
+        }
 
-        // Future Value of a Series formula
-        // FV = P * (1 + r/n)^(n*t) + PMT * [((1 + r/n)^(n*t) - 1) / (r/n)]
+        let totalFutureValue;
+        if (isNaN(rateInput) || rateInput === 0) {
+            totalFutureValue = P + (PMT * 12 * t);
+        } else {
+            const r = rateInput / 100;
+            const compoundFactor = Math.pow(1 + r / n, n * t);
+            const futureValuePrincipal = P * compoundFactor;
+            const futureValueSeries = PMT * ((compoundFactor - 1) / (r / n));
+            totalFutureValue = futureValuePrincipal + futureValueSeries;
+        }
 
-        const compoundFactor = Math.pow(1 + r / n, n * t);
-        const futureValuePrincipal = P * compoundFactor;
-        const futureValueSeries = PMT * ((compoundFactor - 1) / (r / n));
-
-        const totalFutureValue = futureValuePrincipal + futureValueSeries;
         const totalInvested = P + (PMT * 12 * t);
 
         setCpResult({
             futureValue: totalFutureValue,
-            totalInterest: totalFutureValue - totalInvested
+            totalInterest: Math.max(0, totalFutureValue - totalInvested),
+            totalInvested: totalInvested
         });
+    };
+
+    const formatCurrency = (num: number) => {
+        try {
+            return new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND',
+                maximumFractionDigits: 0
+            }).format(num);
+        } catch (e) {
+            return num.toLocaleString('vi-VN') + ' ₫';
+        }
     };
 
     const handleDeleteBackup = async () => {
@@ -998,24 +1421,90 @@ export default function ProfileScreen({
 
                 {activeTab === 'goals' && (
                     <View style={styles.categoriesContainer}>
-                        <TouchableOpacity
-                            style={[styles.addCategoryBtn, { backgroundColor: isDark ? 'rgba(236, 72, 153, 0.1)' : '#FCE7F3', borderColor: colors.primary }]}
-                            onPress={() => {
-                                resetGoalForm();
-                                setIsGoalModalVisible(true);
-                            }}
-                        >
-                            <Ionicons name="add-circle" size={24} color={colors.primary} />
-                            <ThemedText style={{ color: colors.primary, fontWeight: '600' }}>{t.addGoal}</ThemedText>
-                        </TouchableOpacity>
+                        {/* New 4-Card Creation Row */}
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
+                            {[
+                                {
+                                    type: 'subscription',
+                                    title: t.typeSubscription,
+                                    color: '#E0BBE4', // Purple Pastel
+                                    icon: 'card-outline',
+                                    textColor: '#6A1B9A'
+                                },
+                                {
+                                    type: 'debt',
+                                    title: t.typeDebt,
+                                    color: '#B2F7EF', // Mint Pastel
+                                    icon: 'swap-horizontal-outline',
+                                    textColor: '#00695C'
+                                },
+                                {
+                                    type: 'task',
+                                    title: t.typeTask,
+                                    color: '#FFD3B6', // Peach Pastel
+                                    icon: 'checkbox-outline',
+                                    textColor: '#E65100'
+                                },
+                                {
+                                    type: 'plan',
+                                    title: t.typePlan,
+                                    color: '#D4F1F4', // Pearl Blue Pastel
+                                    icon: 'flag-outline',
+                                    textColor: '#0277BD'
+                                },
+                            ].map((item) => (
+                                <TouchableOpacity
+                                    key={item.type}
+                                    style={{
+                                        width: '48%', // Approx 2 columns
+                                        backgroundColor: item.color,
+                                        borderRadius: 16,
+                                        padding: 16,
+                                        minHeight: 100,
+                                        justifyContent: 'space-between',
+                                        shadowColor: '#000',
+                                        shadowOffset: { width: 0, height: 2 },
+                                        shadowOpacity: 0.05,
+                                        shadowRadius: 4,
+                                        elevation: 2,
+                                    }}
+                                    onPress={() => {
+                                        resetGoalForm();
+                                        setGoalType(item.type as any);
+                                        setIsGoalModalVisible(true);
+                                    }}
+                                >
+                                    <View style={{
+                                        backgroundColor: 'rgba(255,255,255,0.6)',
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: 12,
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}>
+                                        <Ionicons name={item.icon as any} size={20} color={item.textColor} />
+                                    </View>
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: '700',
+                                        color: item.textColor,
+                                        marginTop: 8
+                                    }}>
+                                        {item.title}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
 
-                        {(['future', 'debt', 'plan'] as const).map((type) => {
+                        {(['subscription', 'debt', 'task', 'plan', 'future'] as const).map((type) => {
                             const typeGoals = goals.filter(g => g.type === type);
                             if (typeGoals.length === 0) return null;
 
                             let sectionTitle = t.typeFuture;
-                            if (type === 'debt') sectionTitle = t.typeDebt;
-                            if (type === 'plan') sectionTitle = t.typePlan;
+                            if (type === 'debt') sectionTitle = t.debtTitle;
+                            else if (type === 'plan') sectionTitle = t.planTitle;
+                            else if (type === 'subscription') sectionTitle = t.subscriptionTitle;
+                            else if (type === 'task') sectionTitle = t.taskTitle;
 
                             return (
                                 <View key={type} style={styles.section}>
@@ -1029,25 +1518,43 @@ export default function ProfileScreen({
                                             >
                                                 <View style={styles.menuItem}>
                                                     <View style={styles.menuLeft}>
-                                                        <View style={[styles.menuIconBox, { backgroundColor: type === 'debt' ? '#fee2e2' : '#e0e7ff' }]}>
+                                                        <View style={[styles.menuIconBox, {
+                                                            backgroundColor: type === 'debt' ? '#E0F2F1' :
+                                                                type === 'subscription' ? '#F3E5F5' :
+                                                                    type === 'task' ? '#FFF3E0' :
+                                                                        type === 'plan' ? '#E1F5FE' : '#EEF2FF'
+                                                        }]}>
                                                             <Ionicons
-                                                                name={type === 'debt' ? 'alert-circle' : (type === 'future' ? 'rocket' : 'calendar')}
+                                                                name={
+                                                                    type === 'debt' ? 'swap-horizontal' :
+                                                                        type === 'subscription' ? 'card' :
+                                                                            type === 'task' ? 'checkbox' :
+                                                                                type === 'plan' ? 'flag' : 'rocket'
+                                                                }
                                                                 size={20}
-                                                                color={type === 'debt' ? '#EF4444' : '#6366F1'}
+                                                                color={
+                                                                    type === 'debt' ? '#00796B' :
+                                                                        type === 'subscription' ? '#8E24AA' :
+                                                                            type === 'task' ? '#EF6C00' :
+                                                                                type === 'plan' ? '#0288D1' : '#6366F1'
+                                                                }
                                                             />
                                                         </View>
                                                         <View>
-                                                            <ThemedText variant="bodyBold">{g.title}</ThemedText>
+                                                            <ThemedText variant="bodyBold">{g.title || g.partnerName}</ThemedText>
                                                             <ThemedText variant="caption" style={{ color: colors.textSecondary }}>
-                                                                {formatLargeNum(g.currentAmount)} / {formatLargeNum(g.targetAmount)}
+                                                                {type === 'debt' ? `${t.inputDebtAmount}: ${formatLargeNum(g.targetAmount)}` :
+                                                                    (g.deadline || t.goalDeadline)}
                                                             </ThemedText>
                                                         </View>
                                                     </View>
                                                     <View style={styles.menuRight}>
-                                                        <ThemedText style={[styles.menuValue, { color: g.currentAmount >= g.targetAmount ? colors.success : colors.textSecondary }]}>
-                                                            {Math.round((g.currentAmount / g.targetAmount) * 100)}%
-                                                        </ThemedText>
-                                                        <TouchableOpacity onPress={() => handleDeleteGoal(g.id)} style={{ marginLeft: 8 }}>
+                                                        {(type === 'debt' || type === 'plan' || type === 'subscription') && g.targetAmount > 0 && (
+                                                            <ThemedText style={{ color: colors.textSecondary, fontSize: 13, marginRight: 8 }}>
+                                                                {formatLargeNum(g.targetAmount)}
+                                                            </ThemedText>
+                                                        )}
+                                                        <TouchableOpacity onPress={() => handleDeleteGoal(g.id)}>
                                                             <Ionicons name="trash-outline" size={18} color={colors.error} />
                                                         </TouchableOpacity>
                                                     </View>
@@ -1099,29 +1606,33 @@ export default function ProfileScreen({
 
                         <View style={{ gap: 12 }}>
                             {dynamicTools.map((tool) => (
-                                <ThemedView
+                                <TouchableOpacity
                                     key={tool.id}
-                                    variant="surface"
-                                    style={{ padding: 16, borderRadius: 24, borderWidth: 1, borderColor: colors.border }}
-                                    onTouchEnd={() => setActiveTool(tool)}
+                                    activeOpacity={0.7}
+                                    onPress={() => setActiveTool(tool)}
                                 >
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                                        <View style={[styles.menuIconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F3F4F6', width: 48, height: 48, borderRadius: 16 }]}>
-                                            <Text style={{ fontSize: 24 }}>{tool.icon}</Text>
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <ThemedText variant="bodyBold" style={{ fontSize: 16 }}>
-                                                {tool.title}
-                                            </ThemedText>
-                                            {tool.description ? (
-                                                <ThemedText variant="caption" style={{ color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
-                                                    {tool.description}
+                                    <ThemedView
+                                        variant="surface"
+                                        style={{ padding: 16, borderRadius: 24, borderWidth: 1, borderColor: colors.border }}
+                                    >
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                                            <View style={[styles.menuIconBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F3F4F6', width: 48, height: 48, borderRadius: 16 }]}>
+                                                <Text style={{ fontSize: 24 }}>{tool.icon}</Text>
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <ThemedText variant="bodyBold" style={{ fontSize: 16 }}>
+                                                    {tool.title}
                                                 </ThemedText>
-                                            ) : null}
+                                                {tool.description ? (
+                                                    <ThemedText variant="caption" style={{ color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                                                        {tool.description}
+                                                    </ThemedText>
+                                                ) : null}
+                                            </View>
+                                            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
                                         </View>
-                                        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-                                    </View>
-                                </ThemedView>
+                                    </ThemedView>
+                                </TouchableOpacity>
                             ))}
                             {dynamicTools.length === 0 && (
                                 <ThemedText style={{ textAlign: 'center', color: colors.textSecondary, marginTop: 20 }}>
@@ -1317,75 +1828,384 @@ export default function ProfileScreen({
                             {editingGoal ? t.editGoal : t.addGoal}
                         </Text>
 
-                        <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 500 }}>
-                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.goalType}</Text>
-                            <View style={{ flexDirection: 'row', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-                                {(['subscription', 'debt', 'plan', 'future'] as const).map(type => (
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 600 }}>
+
+                            {/* SUBSCRIPTION MODAL CONTENT (Purple Pastel) */}
+                            {goalType === 'subscription' && (
+                                <View>
+                                    <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                                        <TouchableOpacity onPress={() => pickGoalImage(setSubServiceLogo)}>
+                                            <View style={{
+                                                width: 80, height: 80, borderRadius: 40,
+                                                backgroundColor: '#F3E5F5', alignItems: 'center', justifyContent: 'center',
+                                                borderWidth: 1, borderColor: '#CE93D8'
+                                            }}>
+                                                {subServiceLogo ? (
+                                                    <Image source={{ uri: subServiceLogo }} style={{ width: 80, height: 80, borderRadius: 40 }} />
+                                                ) : (
+                                                    <Ionicons name="cloud-upload-outline" size={30} color="#8E24AA" />
+                                                )}
+                                            </View>
+                                        </TouchableOpacity>
+                                        <Text style={{ marginTop: 8, color: '#8E24AA', fontSize: 12 }}>{t.uploadLogo}</Text>
+                                    </View>
+
+                                    <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.inputService}</Text>
+                                    <TextInput
+                                        style={[styles.input, isDark && styles.inputDark]}
+                                        value={goalTitle}
+                                        onChangeText={setGoalTitle}
+                                        placeholder="Netflix, Spotify..."
+                                        placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                    />
+
+                                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.inputCycle}</Text>
+                                            <View style={{ flexDirection: 'row', backgroundColor: isDark ? '#374151' : '#F3F4F6', borderRadius: 12, padding: 4 }}>
+                                                <TouchableOpacity
+                                                    style={{ flex: 1, padding: 8, borderRadius: 8, backgroundColor: subBillingCycle === 'monthly' ? (isDark ? '#4B5563' : '#FFFFFF') : 'transparent', alignItems: 'center' }}
+                                                    onPress={() => setSubBillingCycle('monthly')}
+                                                >
+                                                    <Text style={{ fontSize: 12, fontWeight: '600', color: subBillingCycle === 'monthly' ? (isDark ? '#FFF' : '#000') : (isDark ? '#9CA3AF' : '#6B7280') }}>Month</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={{ flex: 1, padding: 8, borderRadius: 8, backgroundColor: subBillingCycle === 'yearly' ? (isDark ? '#4B5563' : '#FFFFFF') : 'transparent', alignItems: 'center' }}
+                                                    onPress={() => setSubBillingCycle('yearly')}
+                                                >
+                                                    <Text style={{ fontSize: 12, fontWeight: '600', color: subBillingCycle === 'yearly' ? (isDark ? '#FFF' : '#000') : (isDark ? '#9CA3AF' : '#6B7280') }}>Year</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.goalAmount}</Text>
+                                            <TextInput
+                                                style={[styles.input, isDark && styles.inputDark]}
+                                                value={formatNumberInput(goalAmount)}
+                                                onChangeText={handleAmountChange}
+                                                keyboardType="numeric"
+                                                placeholder="0"
+                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                            />
+                                        </View>
+                                    </View>
+
+                                    <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.inputRenewal}</Text>
                                     <TouchableOpacity
-                                        key={type}
-                                        onPress={() => setGoalType(type)}
-                                        style={[{
-                                            paddingVertical: 8,
-                                            paddingHorizontal: 12,
-                                            borderRadius: 8,
-                                            backgroundColor: isDark ? '#374151' : '#F3F4F6',
-                                            borderWidth: 1,
-                                            borderColor: 'transparent'
-                                        }, goalType === type && {
-                                            backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
-                                            borderColor: '#ab10b9'
-                                        }]}
+                                        onPress={() => {
+                                            setDatePickerMode('date');
+                                            setShowDatePicker(true);
+                                        }}
                                     >
-                                        <Text style={{
-                                            fontWeight: goalType === type ? 'bold' : 'normal',
-                                            color: goalType === type ? '#ab10b9' : (isDark ? '#FFF' : '#000')
-                                        }}>
-                                            {type === 'future' ? t.typeFuture : (type === 'debt' ? t.typeDebt : (type === 'plan' ? t.typePlan : t.typeSubscription))}
-                                        </Text>
+                                        <View pointerEvents="none">
+                                            <TextInput
+                                                style={[styles.input, isDark && styles.inputDark]}
+                                                value={goalDeadline}
+                                                editable={false}
+                                                placeholder="DD/MM/YYYY"
+                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                            />
+                                        </View>
                                     </TouchableOpacity>
-                                ))}
-                            </View>
+                                </View>
+                            )}
 
-                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.goalTitle}</Text>
-                            <TextInput
-                                style={[styles.input, isDark && styles.inputDark]}
-                                value={goalTitle}
-                                onChangeText={setGoalTitle}
-                                placeholder={t.goalTitle}
-                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                            />
+                            {/* DEBT MODAL CONTENT (Mint Pastel) */}
+                            {goalType === 'debt' && (
+                                <View>
+                                    <View style={{ flexDirection: 'row', marginBottom: 16, backgroundColor: isDark ? '#374151' : '#E0F2F1', padding: 4, borderRadius: 12 }}>
+                                        <TouchableOpacity
+                                            style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: debtOrCredit === 'lending' ? '#00796B' : 'transparent', alignItems: 'center' }}
+                                            onPress={() => setDebtOrCredit('lending')}
+                                        >
+                                            <Text style={{ fontWeight: 'bold', color: debtOrCredit === 'lending' ? '#FFF' : '#00796B' }}>Cho vay</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: debtOrCredit === 'borrowing' ? '#D32F2F' : 'transparent', alignItems: 'center' }}
+                                            onPress={() => setDebtOrCredit('borrowing')}
+                                        >
+                                            <Text style={{ fontWeight: 'bold', color: debtOrCredit === 'borrowing' ? '#FFF' : '#D32F2F' }}>Đi vay</Text>
+                                        </TouchableOpacity>
+                                    </View>
 
-                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.goalAmount}</Text>
-                            <TextInput
-                                style={[styles.input, isDark && styles.inputDark]}
-                                value={goalAmount}
-                                onChangeText={setGoalAmount}
-                                keyboardType="numeric"
-                                placeholder="0"
-                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                            />
+                                    <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.inputPartner}</Text>
+                                    <TextInput
+                                        style={[styles.input, isDark && styles.inputDark]}
+                                        value={debtPartner}
+                                        onChangeText={setDebtPartner}
+                                        placeholder="Tên người..."
+                                        placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                    />
 
-                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.goalCurrent}</Text>
-                            <TextInput
-                                style={[styles.input, isDark && styles.inputDark]}
-                                value={goalCurrent}
-                                onChangeText={setGoalCurrent}
-                                keyboardType="numeric"
-                                placeholder="0"
-                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                            />
+                                    <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.inputDebtAmount}</Text>
+                                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                                        <TextInput
+                                            style={[styles.input, isDark && styles.inputDark, { flex: 1 }]}
+                                            value={formatNumberInput(goalAmount)}
+                                            onChangeText={handleAmountChange}
+                                            keyboardType="numeric"
+                                            placeholder="0"
+                                            placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                        />
+                                        <View style={[styles.input, isDark && styles.inputDark, { width: 80, alignItems: 'center', justifyContent: 'center' }]}>
+                                            <Text style={{ fontWeight: 'bold', color: isDark ? '#FFF' : '#000' }}>VND</Text>
+                                        </View>
+                                    </View>
 
-                            <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.goalDeadline}</Text>
-                            <TextInput
-                                style={[styles.input, isDark && styles.inputDark]}
-                                value={goalDeadline}
-                                onChangeText={setGoalDeadline}
-                                placeholder="DD/MM/YYYY"
-                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                            />
+                                    <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.goalDeadline}</Text>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            setDatePickerMode('date');
+                                            setShowDatePicker(true);
+                                        }}
+                                    >
+                                        <View pointerEvents="none">
+                                            <TextInput
+                                                style={[styles.input, isDark && styles.inputDark]}
+                                                value={goalDeadline}
+                                                editable={false}
+                                                placeholder="DD/MM/YYYY"
+                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                            />
+                                        </View>
+                                    </TouchableOpacity>
 
-                            <View style={{ marginBottom: 20 }}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                    <TouchableOpacity
+                                        style={{ marginTop: 10, height: 120, borderWidth: 1, borderColor: colors.border, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' }}
+                                        onPress={() => pickGoalImage(setDebtProofImg)}
+                                    >
+                                        {debtProofImg ? (
+                                            <Image source={{ uri: debtProofImg }} style={{ width: '100%', height: '100%', borderRadius: 12 }} resizeMode="cover" />
+                                        ) : (
+                                            <>
+                                                <Ionicons name="camera-outline" size={30} color={colors.textSecondary} />
+                                                <Text style={{ color: colors.textSecondary, marginTop: 8 }}>{t.inputProof}</Text>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+
+                            {/* TASK MODAL CONTENT (Peach Pastel) */}
+                            {goalType === 'task' && (
+                                <View>
+                                    <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.inputTaskTitle}</Text>
+                                    <TextInput
+                                        style={[styles.input, isDark && styles.inputDark]}
+                                        value={goalTitle}
+                                        onChangeText={setGoalTitle}
+                                        placeholder="Công việc cần làm..."
+                                        placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                    />
+
+                                    <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.inputPriority}</Text>
+                                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                                        {['low', 'medium', 'high'].map(p => (
+                                            <TouchableOpacity
+                                                key={p}
+                                                style={{
+                                                    paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20,
+                                                    backgroundColor: taskPriority === p ?
+                                                        (p === 'low' ? '#81C784' : p === 'medium' ? '#FFB74D' : '#E57373') :
+                                                        (isDark ? '#374151' : '#F3F4F6')
+                                                }}
+                                                onPress={() => setTaskPriority(p as any)}
+                                            >
+                                                <Text style={{ color: taskPriority === p ? '#FFF' : (isDark ? '#9CA3AF' : '#6B7280'), fontWeight: '600', textTransform: 'capitalize' }}>
+                                                    {p}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+
+                                    <Text style={[styles.inputLabel, isDark && styles.textDark, { marginTop: 12 }]}>{t.taskDetails}</Text>
+                                    <View style={{ gap: 8, marginBottom: 12 }}>
+                                        {subtasks.map((st) => (
+                                            <View key={st.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: isDark ? '#374151' : '#F3F4F6', padding: 8, borderRadius: 12 }}>
+                                                <TouchableOpacity onPress={() => {
+                                                    setSubtasks(subtasks.map(s => s.id === st.id ? { ...s, completed: !s.completed } : s));
+                                                }}>
+                                                    <Ionicons name={st.completed ? "checkbox" : "square-outline"} size={20} color={st.completed ? "#10B981" : (isDark ? '#9CA3AF' : '#6B7280')} />
+                                                </TouchableOpacity>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={{ color: isDark ? '#FFF' : '#374151', textDecorationLine: st.completed ? 'line-through' : 'none', fontWeight: '500' }}>{st.title}</Text>
+                                                    {st.time && (
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                            <Ionicons name="time-outline" size={12} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                                                            <Text style={{ fontSize: 11, color: isDark ? '#9CA3AF' : '#6B7280' }}>{st.time}</Text>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                                <TouchableOpacity onPress={() => setSubtasks(subtasks.filter(s => s.id !== st.id))}>
+                                                    <Ionicons name="trash-outline" size={18} color={colors.error} />
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+
+                                        <View style={{ gap: 8 }}>
+                                            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                                                <TextInput
+                                                    style={[styles.input, isDark && styles.inputDark, { flex: 1, marginBottom: 0 }]}
+                                                    value={newSubtask}
+                                                    onChangeText={setNewSubtask}
+                                                    placeholder={t.subtaskPlaceholder}
+                                                    placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                                />
+                                                <TouchableOpacity
+                                                    style={{ padding: 12, backgroundColor: '#10B981', borderRadius: 12 }}
+                                                    onPress={() => {
+                                                        if (newSubtask.trim()) {
+                                                            setSubtasks([...subtasks, { id: Date.now().toString(), title: newSubtask.trim(), time: newSubtaskTime || undefined, completed: false }]);
+                                                            setNewSubtask('');
+                                                            setNewSubtaskTime('');
+                                                        }
+                                                    }}
+                                                >
+                                                    <Ionicons name="add" size={24} color="#FFF" />
+                                                </TouchableOpacity>
+                                            </View>
+
+                                            <TouchableOpacity
+                                                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 8, backgroundColor: isDark ? '#4B5563' : '#E5E7EB', borderRadius: 8 }}
+                                                onPress={() => {
+                                                    setDatePickerTarget('subtaskTime');
+                                                    setShowExactTimePicker(true);
+                                                    setReminderType('exact');
+                                                }}
+                                            >
+                                                <Ionicons name="time-outline" size={16} color={isDark ? '#FFF' : '#374151'} />
+                                                <Text style={{ fontSize: 13, color: isDark ? '#FFF' : '#374151' }}>
+                                                    {newSubtaskTime || 'Chọn giờ'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+
+                                    <TouchableOpacity
+                                        style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: isDark ? '#374151' : '#FFF3E0', borderRadius: 12 }}
+                                        onPress={() => pickGoalImage(setTaskRefImg)}
+                                    >
+                                        <Ionicons name="image-outline" size={24} color="#EF6C00" />
+                                        <Text style={{ flex: 1, color: isDark ? '#FFF' : '#EF6C00' }}>{t.uploadRef}</Text>
+                                        {taskRefImg && <Ionicons name="checkmark-circle" size={20} color="#EF6C00" />}
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+
+                            {/* PLAN MODAL CONTENT (Pearl Blue) */}
+                            {goalType === 'plan' && (
+                                <View>
+                                    <TouchableOpacity
+                                        style={{ height: 150, backgroundColor: '#E1F5FE', borderRadius: 16, marginBottom: 20, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+                                        onPress={() => pickGoalImage(setPlanInspoImg)}
+                                    >
+                                        {planInspoImg ? (
+                                            <Image source={{ uri: planInspoImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                        ) : (
+                                            <View style={{ alignItems: 'center' }}>
+                                                <Ionicons name="image" size={40} color="#0288D1" />
+                                                <Text style={{ marginTop: 8, color: '#0288D1', fontWeight: '600' }}>{t.uploadInspo}</Text>
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
+
+                                    <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.inputPlanGoal}</Text>
+                                    <TextInput
+                                        style={[styles.input, isDark && styles.inputDark]}
+                                        value={goalTitle}
+                                        onChangeText={setGoalTitle}
+                                        placeholder="Mục tiêu (vd: Tập Gym)..."
+                                        placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                    />
+
+                                    <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.inputFrequency}</Text>
+                                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                                        {['daily', 'weekly', 'custom'].map(f => (
+                                            <TouchableOpacity
+                                                key={f}
+                                                style={{
+                                                    paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20,
+                                                    backgroundColor: planFrequency === f ? '#0288D1' : (isDark ? '#374151' : '#E1F5FE')
+                                                }}
+                                                onPress={() => setPlanFrequency(f as any)}
+                                            >
+                                                <Text style={{ color: planFrequency === f ? '#FFF' : '#0277BD', fontWeight: '600', textTransform: 'capitalize' }}>
+                                                    {f === 'daily' ? t.freqDaily : f === 'weekly' ? t.freqWeekly : t.freqCustom}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+
+                                    {/* Weekly Days Selector */}
+                                    {planFrequency === 'weekly' && (
+                                        <View style={{ marginBottom: 16 }}>
+                                            <Text style={[styles.inputLabel, isDark && styles.textDark, { fontSize: 12, marginBottom: 8 }]}>{t.selectDays}</Text>
+                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                                {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map((day, index) => (
+                                                    <TouchableOpacity
+                                                        key={index}
+                                                        style={{
+                                                            width: 40, height: 40, borderRadius: 20,
+                                                            backgroundColor: planWeeklyDays.includes(index) ? '#0288D1' : (isDark ? '#374151' : '#E1F5FE'),
+                                                            alignItems: 'center', justifyContent: 'center'
+                                                        }}
+                                                        onPress={() => {
+                                                            if (planWeeklyDays.includes(index)) {
+                                                                setPlanWeeklyDays(planWeeklyDays.filter(d => d !== index));
+                                                            } else {
+                                                                setPlanWeeklyDays([...planWeeklyDays, index].sort());
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Text style={{ color: planWeeklyDays.includes(index) ? '#FFF' : '#0277BD', fontWeight: '600', fontSize: 12 }}>
+                                                            {day}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                        </View>
+                                    )}
+
+                                    {/* Custom Interval Input */}
+                                    {planFrequency === 'custom' && (
+                                        <View style={{ marginBottom: 16 }}>
+                                            <Text style={[styles.inputLabel, isDark && styles.textDark, { fontSize: 12 }]}>{t.everyXDays}</Text>
+                                            <TextInput
+                                                style={[styles.input, isDark && styles.inputDark]}
+                                                value={planCustomInterval.toString()}
+                                                onChangeText={(text) => setPlanCustomInterval(parseInt(text) || 1)}
+                                                keyboardType="number-pad"
+                                                placeholder="Số ngày (vd: 3)"
+                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                            />
+
+                                            <Text style={[styles.inputLabel, isDark && styles.textDark, { fontSize: 12, marginTop: 12 }]}>{t.startDate}</Text>
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    setDatePickerTarget('customStart');
+                                                    setDatePickerMode('date');
+                                                    setShowDatePicker(true);
+                                                }}
+                                            >
+                                                <View pointerEvents="none">
+                                                    <TextInput
+                                                        style={[styles.input, isDark && styles.inputDark]}
+                                                        value={planCustomStartDate}
+                                                        editable={false}
+                                                        placeholder="DD/MM/YYYY"
+                                                        placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                                    />
+                                                </View>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                </View>
+                            )}
+
+                            {/* Shared Reminder Toggle (For all types) */}
+                            {/* Card 1: Reminder Enable & Time Selection */}
+                            <View style={{ marginTop: 20, padding: 16, borderRadius: 16, backgroundColor: isDark ? '#374151' : '#F9FAFB' }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: reminderEnabled ? 16 : 0 }}>
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                         <Ionicons name="notifications" size={20} color={isDark ? '#FFF' : '#000'} />
                                         <Text style={[styles.inputLabel, isDark && styles.textDark, { marginBottom: 0 }]}>{t.reminderEnable}</Text>
@@ -1398,77 +2218,115 @@ export default function ProfileScreen({
                                 </View>
 
                                 {reminderEnabled && (
-                                    <View>
-                                        <Text style={[styles.inputLabel, isDark && styles.textDark, { fontSize: 12, marginBottom: 8 }]}>{t.reminderTime}</Text>
-                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                                            {[
-                                                { label: t.remindOnDay, val: 0 },
-                                                { label: t.remind24h, val: 24 * 60 },
-                                                { label: t.remind3Day, val: 3 * 24 * 60 },
-                                            ].map((opt) => (
+                                    <View style={{ marginTop: 8 }}>
+                                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                                            {/* Date Picker - Not needed for Daily/Weekly Plan as it uses frequency */}
+                                            {(goalType !== 'plan' || planFrequency === 'custom') && (
                                                 <TouchableOpacity
-                                                    key={opt.val}
-                                                    style={[{
-                                                        paddingVertical: 6,
-                                                        paddingHorizontal: 12,
-                                                        borderRadius: 8,
-                                                        backgroundColor: isDark ? '#374151' : '#F3F4F6',
-                                                    }, reminderOffset === opt.val && {
-                                                        backgroundColor: isDark ? '#064E3B' : '#D1FAE5',
-                                                        borderWidth: 1,
-                                                        borderColor: '#10b981'
-                                                    }]}
-                                                    onPress={() => setReminderOffset(opt.val)}
-                                                >
-                                                    <Text style={{
-                                                        fontSize: 12,
-                                                        color: reminderOffset === opt.val ? '#10b981' : (isDark ? '#9CA3AF' : '#6B7280')
-                                                    }}>
-                                                        {opt.label}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                <TouchableOpacity
-                                                    style={[{
-                                                        paddingVertical: 6,
-                                                        paddingHorizontal: 12,
-                                                        borderRadius: 8,
-                                                        backgroundColor: isDark ? '#374151' : '#F3F4F6',
-                                                    }, ![0, 1440, 4320].includes(reminderOffset) && {
-                                                        backgroundColor: isDark ? '#064E3B' : '#D1FAE5',
-                                                        borderWidth: 1,
-                                                        borderColor: '#10b981'
-                                                    }]}
+                                                    style={{
+                                                        flex: 1.5, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12,
+                                                        backgroundColor: isDark ? '#4B5563' : '#E5E7EB', borderRadius: 12
+                                                    }}
                                                     onPress={() => {
-                                                        // Just select it, let input drive value
-                                                        if ([0, 1440, 4320].includes(reminderOffset)) setReminderOffset(-1);
+                                                        setDatePickerTarget(planFrequency === 'custom' ? 'customStart' : 'deadline');
+                                                        setDatePickerMode('date');
+                                                        setShowDatePicker(true);
                                                     }}
                                                 >
-                                                    <Text style={{
-                                                        fontSize: 12,
-                                                        color: ![0, 1440, 4320].includes(reminderOffset) ? '#10b981' : (isDark ? '#9CA3AF' : '#6B7280')
-                                                    }}>
-                                                        {t.remindCustom}
-                                                    </Text>
+                                                    <Ionicons name="calendar-outline" size={18} color={isDark ? '#FFF' : '#374151'} />
+                                                    <View>
+                                                        <Text style={{ fontSize: 10, color: isDark ? '#9CA3AF' : '#6B7280' }}>{t.startDate}</Text>
+                                                        <Text style={{ fontSize: 13, color: isDark ? '#FFF' : '#374151', fontWeight: '600' }}>
+                                                            {(planFrequency === 'custom' ? planCustomStartDate : goalDeadline) || 'Chọn ngày'}
+                                                        </Text>
+                                                    </View>
                                                 </TouchableOpacity>
-                                                {![0, 1440, 4320].includes(reminderOffset) && (
-                                                    <TextInput
-                                                        style={[styles.input, isDark && styles.inputDark, { width: 60, marginBottom: 0, padding: 6, textAlign: 'center' }]}
-                                                        keyboardType="numeric"
-                                                        placeholder="2"
-                                                        onChangeText={(txt) => {
-                                                            setCustomOffsetHours(txt);
-                                                            const hours = parseFloat(txt);
-                                                            if (!isNaN(hours)) setReminderOffset(hours * 60);
-                                                        }}
-                                                    />
-                                                )}
-                                            </View>
+                                            )}
+
+                                            {/* Time Picker */}
+                                            <TouchableOpacity
+                                                style={{
+                                                    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12,
+                                                    backgroundColor: isDark ? '#4B5563' : '#E5E7EB', borderRadius: 12
+                                                }}
+                                                onPress={() => { setReminderType('exact'); setShowExactTimePicker(true); }}
+                                            >
+                                                <Ionicons name="time-outline" size={18} color={isDark ? '#FFF' : '#374151'} />
+                                                <View>
+                                                    <Text style={{ fontSize: 10, color: isDark ? '#9CA3AF' : '#6B7280' }}>{t.reminderTime}</Text>
+                                                    <Text style={{ fontSize: 13, color: isDark ? '#FFF' : '#374151', fontWeight: '600' }}>
+                                                        {exactTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </Text>
+                                                </View>
+                                            </TouchableOpacity>
                                         </View>
                                     </View>
                                 )}
                             </View>
+
+                            {/* Card 2: Sound Selection (Only visible if enabled) */}
+                            {reminderEnabled && (
+                                <View style={{ marginTop: 12, padding: 16, borderRadius: 16, backgroundColor: isDark ? '#374151' : '#F9FAFB' }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                        <Ionicons name="musical-note" size={20} color={isDark ? '#FFF' : '#374151'} />
+                                        <Text style={[styles.inputLabel, isDark && styles.textDark, { marginBottom: 0 }]}>{t.sound}</Text>
+                                    </View>
+
+                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                        <TouchableOpacity
+                                            style={{
+                                                flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center',
+                                                backgroundColor: soundType === 'default' ? '#10B981' : (isDark ? '#4B5563' : '#E5E7EB')
+                                            }}
+                                            onPress={() => setSoundType('default')}
+                                        >
+                                            <Text style={{ fontSize: 13, fontWeight: '600', color: soundType === 'default' ? '#FFF' : (isDark ? '#9CA3AF' : '#6B7280') }}>{t.soundDefault}</Text>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            style={{
+                                                flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center',
+                                                backgroundColor: soundType === 'custom' ? '#10B981' : (isDark ? '#4B5563' : '#E5E7EB')
+                                            }}
+                                            onPress={() => setSoundType('custom')}
+                                        >
+                                            <Text style={{ fontSize: 13, fontWeight: '600', color: soundType === 'custom' ? '#FFF' : (isDark ? '#9CA3AF' : '#6B7280') }}>{t.freqCustom}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {soundType === 'custom' && (
+                                        <View style={{ marginTop: 12, gap: 8 }}>
+                                            <TouchableOpacity
+                                                style={{
+                                                    flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12,
+                                                    backgroundColor: isDark ? '#1F2937' : '#F3F4F6', borderRadius: 12, borderStyle: 'dashed', borderWidth: 1, borderColor: '#10B981'
+                                                }}
+                                                onPress={pickCustomSound}
+                                            >
+                                                <Ionicons name="cloud-upload-outline" size={20} color="#10B981" />
+                                                <Text style={{ flex: 1, fontSize: 13, color: isDark ? '#D1D5DB' : '#374151' }} numberOfLines={1}>
+                                                    {customSound ? customSound.name : t.pickSound}
+                                                </Text>
+                                                {customSound && (
+                                                    <TouchableOpacity onPress={(e) => { e.stopPropagation(); setCustomSound(null); }}>
+                                                        <Ionicons name="close-circle" size={18} color={colors.error} />
+                                                    </TouchableOpacity>
+                                                )}
+                                            </TouchableOpacity>
+
+                                            <Text style={{ fontSize: 11, color: isDark ? '#9CA3AF' : '#6B7280', textAlign: 'center' }}>— {language === 'Tiếng Việt' ? 'Hoặc nhập URI thủ công' : 'Or enter URI manually'} —</Text>
+
+                                            <TextInput
+                                                style={[styles.input, isDark && styles.inputDark, { marginBottom: 0, fontSize: 12 }]}
+                                                value={customSound?.uri || ''}
+                                                onChangeText={(text) => setCustomSound({ name: text.split('/').pop() || 'Manual URI', uri: text })}
+                                                placeholder={t.manualUriPlaceholder}
+                                                placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
+                                            />
+                                        </View>
+                                    )}
+                                </View>
+                            )}
                         </ScrollView>
 
                         <View style={styles.modalButtons}>
@@ -1479,12 +2337,45 @@ export default function ProfileScreen({
                                 <Text style={styles.cancelButtonText}>{t.cancel}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.modalButton, styles.saveButton, { backgroundColor: '#ab10b9' }]}
+                                style={[styles.modalButton, styles.saveButton, {
+                                    backgroundColor: goalType === 'subscription' ? '#8E24AA' :
+                                        goalType === 'debt' ? '#00796B' :
+                                            goalType === 'task' ? '#EF6C00' :
+                                                goalType === 'plan' ? '#0288D1' : '#111827'
+                                }]}
                                 onPress={handleSaveGoal}
                             >
                                 <Text style={styles.saveButtonText}>{t.save}</Text>
                             </TouchableOpacity>
                         </View>
+                        {showDatePicker && (
+                            <RNDateTimePicker
+                                value={tempDate}
+                                mode={datePickerMode}
+                                is24Hour={true}
+                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                onChange={handleDateChange}
+                            />
+                        )}
+                        {showExactTimePicker && (
+                            <RNDateTimePicker
+                                value={exactTime}
+                                mode="time"
+                                is24Hour={true}
+                                display="default"
+                                onChange={handleExactTimeChange}
+                            />
+                        )}
+                        {Platform.OS === 'ios' && showExactTimePicker && (
+                            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: isDark ? '#374151' : 'white', padding: 10, flexDirection: 'row', justifyContent: 'flex-end', gap: 20 }}>
+                                <TouchableOpacity onPress={() => setShowExactTimePicker(false)}>
+                                    <Text style={{ color: 'red', fontSize: 16 }}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setShowExactTimePicker(false)}>
+                                    <Text style={{ color: '#007AFF', fontSize: 16, fontWeight: 'bold' }}>Done</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
                 </View>
             </Modal>
@@ -1552,18 +2443,26 @@ export default function ProfileScreen({
                 animationType="slide"
                 onRequestClose={() => setIsCompoundModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
-                        <Text style={[styles.modalTitle, isDark && styles.textDark]}>
-                            {t.compoundInterest}
-                        </Text>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={styles.modalOverlay}
+                >
+                    <View style={[styles.modalContent, isDark && styles.modalContentDark, { maxHeight: '90%' }]}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                            <Text style={[styles.modalTitle, isDark && styles.textDark, { marginBottom: 0 }]}>
+                                {t.compoundInterest}
+                            </Text>
+                            <TouchableOpacity onPress={() => setIsCompoundModalVisible(false)}>
+                                <Ionicons name="close-circle" size={28} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                            </TouchableOpacity>
+                        </View>
 
                         <ScrollView showsVerticalScrollIndicator={false}>
                             <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.principal}</Text>
                             <TextInput
                                 style={[styles.input, isDark && styles.inputDark]}
                                 value={cpPrincipal}
-                                onChangeText={setCpPrincipal}
+                                onChangeText={(val) => setCpPrincipal(formatInputDots(val))}
                                 keyboardType="numeric"
                                 placeholder="0"
                                 placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
@@ -1573,7 +2472,7 @@ export default function ProfileScreen({
                             <TextInput
                                 style={[styles.input, isDark && styles.inputDark]}
                                 value={cpMonthly}
-                                onChangeText={setCpMonthly}
+                                onChangeText={(val) => setCpMonthly(formatInputDots(val))}
                                 keyboardType="numeric"
                                 placeholder="0"
                                 placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
@@ -1584,7 +2483,7 @@ export default function ProfileScreen({
                                 style={[styles.input, isDark && styles.inputDark]}
                                 value={cpRate}
                                 onChangeText={setCpRate}
-                                keyboardType="numeric"
+                                keyboardType="decimal-pad"
                                 placeholder="7"
                                 placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
                             />
@@ -1600,29 +2499,42 @@ export default function ProfileScreen({
                             />
 
                             {cpResult && (
-                                <View style={{ padding: 16, backgroundColor: isDark ? '#374151' : '#ecfdf5', borderRadius: 12, marginBottom: 16 }}>
+                                <View style={{ padding: 16, backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : '#ECFDF5', borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: isDark ? '#065F46' : '#A7F3D0' }}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                                        <Text style={{ color: isDark ? '#D1D5DB' : '#4B5563' }}>{t.futureValue}:</Text>
-                                        <Text style={{ fontWeight: 'bold', color: '#10b981', fontSize: 16 }}>
-                                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(cpResult.futureValue)}
+                                        <Text style={{ color: isDark ? '#D1D5DB' : '#4B5563' }}>{t.totalInvested}:</Text>
+                                        <Text style={{ fontWeight: 'bold', color: isDark ? '#D1D5DB' : '#4B5563' }}>
+                                            {formatCurrency(cpResult.totalInvested)}
                                         </Text>
                                     </View>
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                                         <Text style={{ color: isDark ? '#D1D5DB' : '#4B5563' }}>{t.totalInterest}:</Text>
                                         <Text style={{ fontWeight: 'bold', color: '#059669' }}>
-                                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(cpResult.totalInterest)}
+                                            {formatCurrency(cpResult.totalInterest)}
+                                        </Text>
+                                    </View>
+                                    <View style={{ height: 1, backgroundColor: isDark ? '#065F46' : '#A7F3D0', marginVertical: 8 }} />
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                        <Text style={{ color: isDark ? '#D1D5DB' : '#4B5563', fontWeight: 'bold' }}>{t.futureValue}:</Text>
+                                        <Text style={{ fontWeight: 'bold', color: '#10b981', fontSize: 18 }}>
+                                            {formatCurrency(cpResult.futureValue)}
                                         </Text>
                                     </View>
                                 </View>
                             )}
                         </ScrollView>
 
-                        <View style={styles.modalButtons}>
+                        <View style={[styles.modalButtons, { marginTop: 10 }]}>
                             <TouchableOpacity
                                 style={[styles.modalButton, styles.cancelButton, { flex: 1 }]}
-                                onPress={() => setIsCompoundModalVisible(false)}
+                                onPress={() => {
+                                    setCpPrincipal('');
+                                    setCpMonthly('');
+                                    setCpRate('');
+                                    setCpYears('');
+                                    setCpResult(null);
+                                }}
                             >
-                                <Text style={styles.cancelButtonText}>{t.cancel}</Text>
+                                <Text style={styles.cancelButtonText}>{language === 'Tiếng Việt' ? 'Xóa trắng' : 'Clear'}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.modalButton, styles.saveButton, { backgroundColor: colors.primary, flex: 1 }]}
@@ -1632,7 +2544,7 @@ export default function ProfileScreen({
                             </TouchableOpacity>
                         </View>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </Modal>
 
             {/* Edit Profile Modal */}
@@ -1780,33 +2692,41 @@ export default function ProfileScreen({
             <Modal
                 visible={!!activeTool}
                 animationType="slide"
-                presentationStyle="pageSheet"
+                presentationStyle="fullScreen"
                 onRequestClose={() => setActiveTool(null)}
             >
-                <View style={[styles.container, { backgroundColor: colors.background }]}>
-                    <View style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: 16,
-                        borderBottomWidth: 1,
-                        borderBottomColor: isDark ? '#374151' : '#E5E7EB',
-                        backgroundColor: isDark ? '#1F2937' : '#FFFFFF'
-                    }}>
-                        <TouchableOpacity onPress={() => setActiveTool(null)}>
-                            <Text style={{ color: '#3B82F6', fontSize: 16 }}>Done</Text>
-                        </TouchableOpacity>
-                        <Text style={[styles.menuLabel, isDark && styles.textDark, { fontSize: 16 }]}>{activeTool?.title}</Text>
-                        <View style={{ width: 40 }} />
-                    </View>
+                <View style={[styles.container, { backgroundColor: '#000' }]}>
                     {activeTool && (
-                        <WebView
-                            source={activeTool.htmlContent ? { html: activeTool.htmlContent } : { uri: activeTool.url || '' }}
-                            style={{ flex: 1, backgroundColor: isDark ? '#111827' : '#FFFFFF' }}
-                            startInLoadingState
-                            renderLoading={() => <ActivityIndicator style={{ position: 'absolute', top: '50%', left: '50%' }} />}
-                            originWhitelist={['*']}
-                        />
+                        <View style={{ flex: 1 }}>
+                            <WebView
+                                source={activeTool.htmlContent ? { html: activeTool.htmlContent } : { uri: activeTool.url || '' }}
+                                style={{ flex: 1, backgroundColor: '#000' }}
+                                startInLoadingState
+                                renderLoading={() => <ActivityIndicator color="#EC4899" style={{ position: 'absolute', top: '50%', left: '50%' }} />}
+                                originWhitelist={['*']}
+                            />
+
+                            {/* Floating Close Button */}
+                            <TouchableOpacity
+                                style={{
+                                    position: 'absolute',
+                                    top: Platform.OS === 'ios' ? 60 : 30,
+                                    right: 20,
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 18,
+                                    backgroundColor: 'rgba(0,0,0,0.4)',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderWidth: 1,
+                                    borderColor: 'rgba(255,255,255,0.2)',
+                                    zIndex: 100
+                                }}
+                                onPress={() => setActiveTool(null)}
+                            >
+                                <Ionicons name="close" size={24} color="#FFF" />
+                            </TouchableOpacity>
+                        </View>
                     )}
                 </View>
             </Modal>
