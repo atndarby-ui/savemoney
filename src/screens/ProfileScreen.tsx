@@ -166,6 +166,17 @@ const translations = {
         colorGreen: 'Xanh lá',
         colorOrange: 'Cam',
         colorRed: 'Đỏ',
+        privacyTitle: 'Bảo mật & Quyền riêng tư',
+        privacyPolicy: 'Chính sách bảo mật',
+        privacySecurityDesc: 'Dữ liệu của bạn được ưu tiên bảo mật hàng đầu. Các giao dịch chỉ được lưu trữ cục bộ trên thiết bị của bạn hoặc được mã hóa khi sao lưu lên đám mây.',
+        privacyBullet1: '• Không chia sẻ dữ liệu cho bên thứ ba.',
+        privacyBullet2: '• Dữ liệu sao lưu được mã hóa đầu cuối.',
+        privacyBullet3: '• Bạn có toàn quyền xóa dữ liệu bất cứ lúc nào.',
+        selectSound: 'Chọn âm thanh',
+        soundCrystal: 'Crystal',
+        soundAurora: 'Aurora',
+        soundDigital: 'Digital',
+        soundElegant: 'Elegant',
     },
     'English': {
         account: 'ACCOUNT',
@@ -270,6 +281,17 @@ const translations = {
         colorGreen: 'Green',
         colorOrange: 'Orange',
         colorRed: 'Red',
+        privacyTitle: 'Security & Privacy',
+        privacyPolicy: 'Privacy Policy',
+        privacySecurityDesc: 'Your data security is our top priority. Transactions are stored locally on your device or encrypted when backed up to the cloud.',
+        privacyBullet1: '• No data sharing with third parties.',
+        privacyBullet2: '• Backups are end-to-end encrypted.',
+        privacyBullet3: '• You have full control to delete data anytime.',
+        selectSound: 'Select Sound',
+        soundCrystal: 'Crystal',
+        soundAurora: 'Aurora',
+        soundDigital: 'Digital',
+        soundElegant: 'Elegant',
     },
 };
 
@@ -298,6 +320,17 @@ export default function ProfileScreen({
         eth: true,
     });
     const [isIndexModalVisible, setIsIndexModalVisible] = useState(false);
+    const [isPrivacyModalVisible, setIsPrivacyModalVisible] = useState(false);
+    const [isSoundPickerVisible, setIsSoundPickerVisible] = useState(false);
+    const [selectedSound, setSelectedSound] = useState('Default');
+
+    const NOTIF_SOUNDS = [
+        { id: 'Default', name: t.soundDefault },
+        { id: 'Crystal', name: t.soundCrystal },
+        { id: 'Aurora', name: t.soundAurora },
+        { id: 'Digital', name: t.soundDigital },
+        { id: 'Elegant', name: t.soundElegant },
+    ];
     const [currentRates, setCurrentRates] = useState<any>(null);
 
     // Goals State
@@ -890,7 +923,7 @@ export default function ProfileScreen({
                                     icon="lock-closed-outline"
                                     iconBgColor="#F472B6" // Light pink
                                     label={t.security}
-                                    onPress={() => { }}
+                                    onPress={() => setIsPrivacyModalVisible(true)}
                                     last={!currentUser}
                                 />
                                 {currentUser && (
@@ -1487,17 +1520,22 @@ export default function ProfileScreen({
                             />
                         </View>
 
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}
+                            onPress={() => setIsSoundPickerVisible(true)}
+                        >
                             <Text style={[styles.menuLabel, isDark && styles.textDark, { fontSize: 16 }]}>{t.sound}</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Text style={{ color: '#6B7280', marginRight: 8 }}>{t.soundDefault}</Text>
+                                <Text style={{ color: '#6B7280', marginRight: 8 }}>
+                                    {NOTIF_SOUNDS.find(s => s.id === selectedSound)?.name || t.soundDefault}
+                                </Text>
                                 <Ionicons name="chevron-forward" size={16} color="#6B7280" />
                             </View>
-                        </View>
+                        </TouchableOpacity>
 
                         <View style={styles.modalButtons}>
                             <TouchableOpacity
-                                style={[styles.modalButton, styles.saveButton, { backgroundColor: '#10b981' }]}
+                                style={[styles.modalButton, styles.saveButton, { backgroundColor: colors.primary, flex: 1 }]}
                                 onPress={() => setIsNotifSettingsVisible(false)}
                             >
                                 <Text style={styles.saveButtonText}>{t.save}</Text>
@@ -1581,13 +1619,13 @@ export default function ProfileScreen({
 
                         <View style={styles.modalButtons}>
                             <TouchableOpacity
-                                style={[styles.modalButton, styles.cancelButton]}
+                                style={[styles.modalButton, styles.cancelButton, { flex: 1 }]}
                                 onPress={() => setIsCompoundModalVisible(false)}
                             >
                                 <Text style={styles.cancelButtonText}>{t.cancel}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.modalButton, styles.saveButton, { backgroundColor: '#10b981' }]}
+                                style={[styles.modalButton, styles.saveButton, { backgroundColor: colors.primary, flex: 1 }]}
                                 onPress={calculateCompoundInterest}
                             >
                                 <Text style={styles.saveButtonText}>{t.calculate}</Text>
@@ -1633,13 +1671,13 @@ export default function ProfileScreen({
 
                         <View style={styles.modalButtons}>
                             <TouchableOpacity
-                                style={[styles.modalButton, styles.cancelButton]}
+                                style={[styles.modalButton, styles.cancelButton, { flex: 1 }]}
                                 onPress={() => setIsEditingInfo(false)}
                             >
                                 <Text style={styles.cancelButtonText}>{t.cancel}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.modalButton, styles.saveButton]}
+                                style={[styles.modalButton, styles.saveButton, { backgroundColor: colors.primary, flex: 1 }]}
                                 onPress={handleSaveInfo}
                             >
                                 <Text style={styles.saveButtonText}>{t.save}</Text>
@@ -1725,7 +1763,11 @@ export default function ProfileScreen({
                         </View>
 
                         <TouchableOpacity
-                            style={[styles.modalButton, styles.saveButton, { backgroundColor: '#10b981', flex: 0, width: '100%', marginTop: 10 }]}
+                            style={[
+                                styles.modalButton,
+                                styles.saveButton,
+                                { backgroundColor: colors.primary, flex: 0, width: '100%', marginTop: 10 }
+                            ]}
                             onPress={() => setIsIndexModalVisible(false)}
                         >
                             <Text style={styles.saveButtonText}>{t.save}</Text>
@@ -1815,10 +1857,123 @@ export default function ProfileScreen({
                         </View>
 
                         <TouchableOpacity
-                            style={[styles.modalButton, { backgroundColor: colors.primary, marginTop: 20 }]}
+                            style={[
+                                styles.modalButton,
+                                { backgroundColor: colors.primary, marginTop: 20, flex: 0, width: '100%' }
+                            ]}
                             onPress={() => setIsColorPickerVisible(false)}
                         >
-                            <ThemedText style={{ color: '#FFF', fontWeight: 'bold' }}>{t.cancel}</ThemedText>
+                            <Text style={styles.saveButtonText}>{t.cancel}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+            {/* Sound Picker Modal */}
+            <Modal
+                visible={isSoundPickerVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setIsSoundPickerVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+                        <ThemedText variant="h2" style={{ marginBottom: 24 }}>{t.selectSound}</ThemedText>
+
+                        <View style={{ gap: 12 }}>
+                            {NOTIF_SOUNDS.map((sound) => (
+                                <TouchableOpacity
+                                    key={sound.id}
+                                    style={[
+                                        styles.colorOption,
+                                        { backgroundColor: isDark ? colors.surface : '#F9FAFB' },
+                                        selectedSound === sound.id && { borderColor: colors.primary, borderWidth: 2 }
+                                    ]}
+                                    onPress={() => {
+                                        setSelectedSound(sound.id);
+                                        setIsSoundPickerVisible(false);
+                                    }}
+                                >
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                        <View
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                borderRadius: 20,
+                                                backgroundColor: isDark ? '#374151' : '#E5E7EB',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}
+                                        >
+                                            <Ionicons name="musical-notes-outline" size={20} color={colors.primary} />
+                                        </View>
+                                        <ThemedText variant="bodyBold">
+                                            {sound.name}
+                                        </ThemedText>
+                                    </View>
+                                    {selectedSound === sound.id && (
+                                        <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.modalButton,
+                                { backgroundColor: colors.primary, marginTop: 20, flex: 0, width: '100%' }
+                            ]}
+                            onPress={() => setIsSoundPickerVisible(false)}
+                        >
+                            <Text style={styles.saveButtonText}>{t.cancel}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Privacy & Security Modal */}
+            <Modal
+                visible={isPrivacyModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setIsPrivacyModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, isDark && styles.modalContentDark, { width: '90%' }]}>
+                        <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                            <View style={{
+                                width: 64,
+                                height: 64,
+                                borderRadius: 32,
+                                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : '#ECFDF5',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginBottom: 16
+                            }}>
+                                <Ionicons name="shield-checkmark" size={32} color="#10B981" />
+                            </View>
+                            <ThemedText variant="h2" style={{ textAlign: 'center' }}>{t.privacyTitle}</ThemedText>
+                        </View>
+
+                        <Text style={[
+                            { fontSize: 15, lineHeight: 22, color: isDark ? '#D1D5DB' : '#4B5563', marginBottom: 20, textAlign: 'center' }
+                        ]}>
+                            {t.privacySecurityDesc}
+                        </Text>
+
+                        <View style={{ gap: 12, marginBottom: 24 }}>
+                            <ThemedText variant="body">{t.privacyBullet1}</ThemedText>
+                            <ThemedText variant="body">{t.privacyBullet2}</ThemedText>
+                            <ThemedText variant="body">{t.privacyBullet3}</ThemedText>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.modalButton,
+                                { backgroundColor: colors.primary, flex: 0, width: '100%' }
+                            ]}
+                            onPress={() => setIsPrivacyModalVisible(false)}
+                        >
+                            <Text style={styles.saveButtonText}>{t.save}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -2120,7 +2275,6 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     modalButton: {
-        flex: 1,
         padding: 14,
         borderRadius: 12,
         alignItems: 'center',

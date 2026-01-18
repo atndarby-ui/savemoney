@@ -178,9 +178,9 @@ export const PALETTES: Record<AccentColorType, Record<ThemeType, ColorPalette>> 
         dark: {
             primary: '#34D399',
             secondary: '#10B981',
-            background: '#022C22', // Dark with green tint
-            surface: '#064E3B',
-            surfaceGlass: 'rgba(6, 78, 59, 0.7)',
+            background: '#040F0A', // Much darker, almost black green
+            surface: '#0D1A14',
+            surfaceGlass: 'rgba(13, 26, 20, 0.7)',
             text: '#F9FAFB',
             textSecondary: '#D1D5DB',
             accent: '#6EE7B7',
@@ -192,7 +192,7 @@ export const PALETTES: Record<AccentColorType, Record<ThemeType, ColorPalette>> 
                 primary: ['#10B981', '#34D399'],
                 secondary: ['#10B981', '#064E3B'],
                 accent: ['#059669', '#10B981'],
-                darkBg: ['#022C22', '#064E3B'],
+                darkBg: ['#040F0A', '#0D1A14'],
             }
         }
     },
@@ -214,15 +214,15 @@ export const PALETTES: Record<AccentColorType, Record<ThemeType, ColorPalette>> 
                 primary: ['#F97316', '#FB923C'],
                 secondary: ['#FB923C', '#FED7AA'],
                 accent: ['#EA580C', '#F97316'],
-                darkBg: ['#431407', '#7C2D12'],
+                darkBg: ['#0F0804', '#1F120A'],
             }
         },
         dark: {
             primary: '#FB923C',
             secondary: '#F97316',
-            background: '#431407', // Dark with orange tint
-            surface: '#7C2D12',
-            surfaceGlass: 'rgba(124, 45, 18, 0.7)',
+            background: '#0F0804', // Much darker, almost black orange
+            surface: '#1F120A',
+            surfaceGlass: 'rgba(31, 18, 10, 0.7)',
             text: '#F9FAFB',
             textSecondary: '#D1D5DB',
             accent: '#FDBA74',
@@ -234,7 +234,7 @@ export const PALETTES: Record<AccentColorType, Record<ThemeType, ColorPalette>> 
                 primary: ['#F97316', '#FB923C'],
                 secondary: ['#F97316', '#7C2D12'],
                 accent: ['#EA580C', '#F97316'],
-                darkBg: ['#431407', '#7C2D12'],
+                darkBg: ['#0F0804', '#1F120A'],
             }
         }
     },
@@ -256,15 +256,15 @@ export const PALETTES: Record<AccentColorType, Record<ThemeType, ColorPalette>> 
                 primary: ['#EF4444', '#F87171'],
                 secondary: ['#F87171', '#FECACA'],
                 accent: ['#DC2626', '#EF4444'],
-                darkBg: ['#450A0A', '#7F1D1D'],
+                darkBg: ['#0F0404', '#1F0A0A'],
             }
         },
         dark: {
             primary: '#F87171',
             secondary: '#EF4444',
-            background: '#450A0A', // Dark with red tint
-            surface: '#7F1D1D',
-            surfaceGlass: 'rgba(127, 29, 29, 0.7)',
+            background: '#0F0404', // Much darker, almost black red
+            surface: '#1F0A0A',
+            surfaceGlass: 'rgba(31, 10, 10, 0.7)',
             text: '#F9FAFB',
             textSecondary: '#D1D5DB',
             accent: '#FCA5A5',
@@ -276,7 +276,7 @@ export const PALETTES: Record<AccentColorType, Record<ThemeType, ColorPalette>> 
                 primary: ['#EF4444', '#F87171'],
                 secondary: ['#EF4444', '#991B1B'],
                 accent: ['#DC2626', '#EF4444'],
-                darkBg: ['#450A0A', '#7F1D1D'],
+                darkBg: ['#0F0404', '#1F0A0A'],
             }
         }
     }

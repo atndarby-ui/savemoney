@@ -1,7 +1,17 @@
-import { auth, db } from '../config/firebase';
+import { auth, db, storage } from '../config/firebase';
 import { doc, setDoc, getDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Database } from './Database';
 import { Alert } from 'react-native';
+
+const ensureDirExists = async (dir: string) => {
+    const dirInfo = await FileSystem.getInfoAsync(dir);
+    if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+    }
+};
+
 
 export const SyncService = {
     uploadBackup: async () => {
@@ -17,14 +27,42 @@ export const SyncService = {
             const categories = await Database.getCategories();
             const chatHistory = await Database.getChatHistory();
 
+            // 1a. Upload Images for Transactions
+            const userId = user.uid;
+            const transactionsWithCloudImages = await Promise.all(transactions.map(async (tx) => {
+                // If it has a local image URI, upload it
+                if (tx.imageUri && !tx.imageUri.startsWith('http')) {
+                    try {
+                        const filename = tx.id + '_' + Date.now() + '.jpg';
+                        const storageRef = ref(storage, `users/${userId}/receipts/${filename}`);
+
+                        // Read file as blob
+                        const response = await fetch(tx.imageUri);
+                        const blob = await response.blob();
+
+                        await uploadBytes(storageRef, blob);
+                        const downloadURL = await getDownloadURL(storageRef);
+
+                        return { ...tx, imageUri: downloadURL };
+                    } catch (imgError) {
+                        console.error(`Failed to upload image for tx ${tx.id}:`, imgError);
+                        // Fallback: keep original URI or set null? 
+                        // If we keep local URI, it won't work on other devices. 
+                        // But better to fail gracefully.
+                        return tx;
+                    }
+                }
+                return tx;
+            }));
+
             // 2. Prepare payload
             const backupData = {
-                transactions,
+                transactions: transactionsWithCloudImages,
                 categories,
                 chatHistory,
                 updatedAt: serverTimestamp(),
                 deviceInfo: {
-                    platform: 'mobile', // Simplified
+                    platform: 'mobile',
                 }
             };
 
@@ -80,6 +118,11 @@ export const SyncService = {
             const transactions = getAsArray(data.transactions);
             if (transactions) {
                 console.log(`Processing ${transactions.length} transactions...`);
+
+                // Prepare local receipts directory
+                const receiptsDir = `${FileSystem.documentDirectory}receipts/`;
+                await ensureDirExists(receiptsDir);
+
                 for (const tx of transactions) {
                     let dateVal = tx.date;
 
@@ -87,7 +130,7 @@ export const SyncService = {
                     if (dateVal && typeof dateVal.toDate === 'function') {
                         dateVal = dateVal.toDate();
                     }
-                    // Handle object with seconds/nanoseconds (if it lost its prototype)
+                    // Handle object with seconds/nanoseconds
                     else if (dateVal && typeof dateVal === 'object' && 'seconds' in dateVal) {
                         dateVal = new Date(dateVal.seconds * 1000);
                     }
@@ -102,8 +145,29 @@ export const SyncService = {
                         dateVal = new Date();
                     }
 
+                    // Handle Image Download
+                    let localImageUri = tx.imageUri;
+                    if (tx.imageUri && tx.imageUri.startsWith('http')) {
+                        try {
+                            const filename = `restored_${tx.id}_${Date.now()}.jpg`;
+                            const localPath = receiptsDir + filename;
+
+                            const downloadResult = await FileSystem.downloadAsync(
+                                tx.imageUri,
+                                localPath
+                            );
+                            if (downloadResult.status === 200) {
+                                localImageUri = localPath;
+                            }
+                        } catch (err) {
+                            console.error('Failed to download image for tx:', tx.id, err);
+                            // If download fails, keep the remote URL so user can at least see it with internet
+                        }
+                    }
+
                     await Database.addTransaction({
                         ...tx,
+                        imageUri: localImageUri,
                         date: dateVal
                     });
                 }

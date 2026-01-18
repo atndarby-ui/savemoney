@@ -80,17 +80,54 @@ const TypingIndicator = ({ isDark }: { isDark: boolean }) => {
     );
 };
 
+const FormattedText = ({ text, isDark }: { text: string; isDark: boolean }) => {
+    // Split by double asterisks for bolding
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+
+    return (
+        <Text style={[styles.messageText, isDark && styles.messageTextDark]}>
+            {parts.map((part, index) => {
+                if (part.startsWith('**') && part.endsWith('**')) {
+                    return (
+                        <Text key={index} style={[styles.boldText, isDark && styles.boldTextDark]}>
+                            {part.slice(2, -2)}
+                        </Text>
+                    );
+                }
+
+                // Handle bullets within the part if it's not bold
+                // Match newline followed by star and space, or star and space at the very beginning
+                return part.split('\n').map((line, lineIndex) => {
+                    let content = line;
+                    let isBullet = false;
+
+                    if (content.trim().startsWith('* ')) {
+                        content = content.trim().substring(2);
+                        isBullet = true;
+                    }
+
+                    return (
+                        <Text key={`${index}-${lineIndex}`}>
+                            {isBullet ? '• ' : ''}
+                            {content}
+                            {lineIndex < part.split('\n').length - 1 ? '\n' : ''}
+                        </Text>
+                    );
+                });
+            })}
+        </Text>
+    );
+};
+
 const TypewriterText = ({ text, isDark, onComplete, scrollRef }: { text: string; isDark: boolean; onComplete?: () => void; scrollRef?: React.RefObject<ScrollView | null> }) => {
     const [displayedText, setDisplayedText] = useState('');
 
-    // Simple interval-based typewriter
     useEffect(() => {
         let i = 0;
         setDisplayedText('');
 
         const timer = setInterval(() => {
             if (i < text.length) {
-                // Maximum burst: 15 characters per tick
                 const nextI = Math.min(i + 15, text.length);
                 setDisplayedText(text.substring(0, nextI));
                 i = nextI;
@@ -102,16 +139,14 @@ const TypewriterText = ({ text, isDark, onComplete, scrollRef }: { text: string;
                 scrollRef?.current?.scrollToEnd({ animated: true });
                 onComplete?.();
             }
-        }, 5); // 5ms interval + 15 chars/tick = Extreme speed
+        }, 5);
 
         return () => clearInterval(timer);
     }, [text]);
 
     return (
         <View>
-            <Text style={[styles.messageText, isDark && styles.messageTextDark]}>
-                {displayedText}
-            </Text>
+            <FormattedText text={displayedText} isDark={isDark} />
         </View>
     );
 };
@@ -137,11 +172,7 @@ const translations = {
 };
 
 const formatAIResponse = (text: string, isDark: boolean) => {
-    return (
-        <Text style={[styles.messageText, isDark && styles.messageTextDark]}>
-            {text}
-        </Text>
-    );
+    return <FormattedText text={text} isDark={isDark} />;
 };
 
 const personalities = [
@@ -296,11 +327,13 @@ ${activePersonality.systemPrompt(language)}
 Ngày: ${todayISO}
 Dữ liệu chi tiêu: ${JSON.stringify(transactions.slice(0, 15))}
 
-Quy tắc:
-- Chat tự nhiên như bạn bè (Zalo/Messenger). 
-- Chỉ nhắc đến tiền khi thực sự cần.
-- Không in đậm, không gạch đầu dòng, không đề mục.
-- Ngắn gọn, xuống dòng tự nhiên.
+Quy tắc quan trọng:
+- Chat tự nhiên, gần gũi như Messenger/Telegram/Zalo.
+- Tuyệt đối không dùng cấu trúc danh sách (1., 2., 3.) hay gạch đầu dòng (*).
+- Trình bày dạng các đoạn văn ngắn, cách nhau bằng dấu xuống dòng.
+- Không dùng tiêu đề hay đề mục.
+- Nếu cần liệt kê, hãy dùng emoji ở đầu dòng thay vì dấu gạch ngang.
+- Văn phong linh hoạt, hài hước (nếu là tính cách hài hước).
 `;
 
     const handleSend = async (directText?: string) => {
@@ -320,9 +353,9 @@ Quy tắc:
             const genAI = new GoogleGenerativeAI(apiKey);
             const model = genAI.getGenerativeModel({
                 model: 'gemini-3-flash-preview',
-                // @ts-ignore
                 tools: [
                     {
+                        // @ts-ignore
                         googleSearch: {},
                     },
                 ],
@@ -374,13 +407,16 @@ Quy tắc:
         >
             <View style={[styles.inner, { backgroundColor: colors.background }]}>
                 {/* Header Row */}
-                <View style={[styles.headerRow, { backgroundColor: colors.surface }]}>
+                <View style={[styles.headerRow, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
                     <TouchableOpacity
-                        style={[styles.dropdownTrigger, isDark && styles.dropdownTriggerDark]}
+                        style={[
+                            styles.dropdownTrigger,
+                            { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' }
+                        ]}
                         onPress={() => setShowPersonalityModal(true)}
                     >
                         <Text style={styles.personalityIcon}>{activePersonality.icon}</Text>
-                        <Text style={[styles.activePersonalityName, isDark && styles.textDark]}>
+                        <Text style={[styles.activePersonalityName, { color: colors.text }]}>
                             {activePersonality.name[language]}
                         </Text>
                         <Ionicons name="chevron-down" size={16} color={isDark ? '#9CA3AF' : '#6B7280'} />
@@ -577,7 +613,6 @@ const styles = StyleSheet.create({
     activePersonalityName: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#FFFFFF',
     },
     clearButton: {
         width: 40,
@@ -663,6 +698,11 @@ const styles = StyleSheet.create({
         borderBottomLeftRadius: 4,
         borderWidth: 1,
         borderColor: '#E5E7EB',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
     },
     modelBubbleDark: {
         backgroundColor: '#1F2937',

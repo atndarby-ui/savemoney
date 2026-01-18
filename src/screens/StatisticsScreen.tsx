@@ -40,17 +40,64 @@ export default function StatisticsScreen({
     }, [transactions]);
 
     const trendData = useMemo(() => {
-        // Mock data or simple aggregation
-        return [
-            { label: 'Week 1', income: 0, expense: 0 },
-            { label: 'Week 2', income: 0, expense: 0 },
-            { label: 'Week 3', income: 0, expense: 0 },
-            { label: 'Week 4', income: 0, expense: 0 },
-        ];
+        const now = new Date();
+        now.setHours(23, 59, 59, 999);
+
+        let startDate = new Date(now);
+        let periods = 7;
+        let dayIncrement = 1;
+
+        if (selectedTimeRange === '7days') {
+            startDate.setDate(now.getDate() - 6);
+            startDate.setHours(0, 0, 0, 0);
+            periods = 7;
+            dayIncrement = 1;
+        } else if (selectedTimeRange === 'month') {
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            startDate.setHours(0, 0, 0, 0);
+            periods = 5;
+            dayIncrement = 6;
+        } else {
+            // 30 days
+            startDate.setDate(now.getDate() - 29);
+            startDate.setHours(0, 0, 0, 0);
+            periods = 6;
+            dayIncrement = 5;
+        }
+
+        const dataPoints = [];
+        for (let i = 0; i < periods; i++) {
+            const pStart = new Date(startDate);
+            pStart.setDate(startDate.getDate() + (i * dayIncrement));
+            const pEnd = new Date(pStart);
+            pEnd.setDate(pStart.getDate() + dayIncrement - 1);
+            pEnd.setHours(23, 59, 59, 999);
+
+            let income = 0;
+            let expense = 0;
+
+            transactions.forEach(tx => {
+                const txDate = new Date(tx.date);
+                if (txDate >= pStart && txDate <= pEnd) {
+                    if (tx.type === 'income') income += tx.amount;
+                    else expense += tx.amount;
+                }
+            });
+
+            let label = '';
+            if (dayIncrement === 1) {
+                label = pStart.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+            } else {
+                label = `${pStart.getDate()}/${pStart.getMonth() + 1}`;
+            }
+
+            dataPoints.push({ label, income, expense });
+        }
+
+        return dataPoints;
     }, [transactions, selectedTimeRange]);
 
     const pieData = useMemo(() => {
-        // Group expenses by category
         const expenses = transactions.filter(tx => tx.type === 'expense');
         const grouped = expenses.reduce((acc, tx) => {
             const catId = tx.categoryId;
@@ -59,17 +106,25 @@ export default function StatisticsScreen({
             return acc;
         }, {} as Record<string, number>);
 
-        return Object.keys(grouped).map(catId => ({
-            x: catId,
-            y: grouped[catId],
-            label: categories.find(c => c.id === catId)?.name || 'Unknown',
-            color: categories.find(c => c.id === catId)?.color || '#999',
-            value: grouped[catId]
-        }));
+        const total = Object.values(grouped).reduce((a, b) => a + b, 0);
+
+        return Object.keys(grouped)
+            .map(catId => {
+                const val = grouped[catId];
+                return {
+                    x: catId,
+                    y: val,
+                    label: categories.find(c => c.id === catId)?.name || 'Unknown',
+                    color: categories.find(c => c.id === catId)?.color || '#999',
+                    value: val,
+                    percentage: total > 0 ? Math.round((val / total) * 100) : 0
+                };
+            })
+            .sort((a, b) => b.value - a.value);
     }, [transactions, categories]);
 
     const filteredTransactions = useMemo(() => {
-        return transactions.slice(0, 10); // Show last 10
+        return [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [transactions]);
 
     const TimeChip = ({ label, value }: { label: string, value: string }) => (
@@ -152,37 +207,42 @@ export default function StatisticsScreen({
                         </View>
                     </View>
 
-                    <View style={{ height: 200, width: '100%' }}>
-                        <CartesianChart
-                            data={trendData}
-                            xKey="label"
-                            yKeys={['income', 'expense']}
-                            domainPadding={{ left: 20, right: 20, top: 20 }}
-                            axisOptions={{
-                                font: undefined, // uses default
-                                tickCount: 5,
-                                labelColor: isDark ? '#9CA3AF' : '#6B7280',
-                                lineColor: isDark ? '#374151' : '#E5E7EB',
-                            }}
-                        >
-                            {({ points, chartBounds }) => (
-                                <>
-                                    <BarGroup
-                                        chartBounds={chartBounds}
-                                        betweenGroupPadding={0.3}
-                                    >
-                                        <BarGroup.Bar
-                                            points={points.income}
-                                            color="#10b981"
-                                        />
-                                        <BarGroup.Bar
-                                            points={points.expense}
-                                            color="#f43f5e"
-                                        />
-                                    </BarGroup>
-                                </>
-                            )}
-                        </CartesianChart>
+                    <View style={{ height: 200, width: '100%', justifyContent: 'center' }}>
+                        {trendData.some(d => d.income > 0 || d.expense > 0) ? (
+                            <CartesianChart
+                                data={trendData}
+                                xKey="label"
+                                yKeys={['income', 'expense']}
+                                domainPadding={{ left: 20, right: 20, top: 20 }}
+                                axisOptions={{
+                                    font: undefined,
+                                    tickCount: 5,
+                                    labelColor: isDark ? '#9CA3AF' : '#6B7280',
+                                    lineColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                                    labelOffset: 8,
+                                }}
+                            >
+                                {({ points, chartBounds }) => (
+                                    <>
+                                        <BarGroup
+                                            chartBounds={chartBounds}
+                                            betweenGroupPadding={0.3}
+                                        >
+                                            <BarGroup.Bar
+                                                points={points.income}
+                                                color="#10b981"
+                                            />
+                                            <BarGroup.Bar
+                                                points={points.expense}
+                                                color="#f43f5e"
+                                            />
+                                        </BarGroup>
+                                    </>
+                                )}
+                            </CartesianChart>
+                        ) : (
+                            <Text style={styles.noData}>{t.noTx}</Text>
+                        )}
                     </View>
                 </View>
 
@@ -211,13 +271,13 @@ export default function StatisticsScreen({
                                 </View>
                             </View>
                             <View style={styles.pieLabels}>
-                                {pieData.slice(0, 4).map((item) => (
+                                {pieData.slice(0, 6).map((item) => (
                                     <View key={item.label} style={styles.pieLabelRow}>
                                         <View style={styles.pieLabelLeft}>
                                             <View
                                                 style={[styles.pieDot, { backgroundColor: item.color }]}
                                             />
-                                            <Text style={[styles.pieLabelText, isDark && styles.textLight]}>
+                                            <Text style={[styles.pieLabelText, isDark && styles.textLight, { flex: 1 }]} numberOfLines={1}>
                                                 {item.label}
                                             </Text>
                                         </View>
@@ -336,7 +396,7 @@ export default function StatisticsScreen({
                     </View>
                 </Modal>
             </ScrollView>
-        </ThemedView>
+        </ThemedView >
     );
 }
 
@@ -348,23 +408,6 @@ const styles = StyleSheet.create({
     },
     containerDark: {
         // backgroundColor: '#111827',
-    },
-    timeChip: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-        backgroundColor: '#E5E7EB',
-        marginHorizontal: 4,
-    },
-    timeChipActive: {
-        backgroundColor: '#10B981',
-    },
-    timeChipDark: {
-        backgroundColor: '#374151',
-    },
-    timeChipText: {
-        fontSize: 12,
-        color: '#374151',
     },
     content: {
         padding: 20,
@@ -420,6 +463,9 @@ const styles = StyleSheet.create({
     },
     timeChipActive: {
         backgroundColor: '#111827',
+    },
+    timeChipDark: {
+        backgroundColor: '#374151',
     },
     timeChipActiveDark: {
         backgroundColor: '#10b981',
