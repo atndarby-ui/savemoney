@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StatusBar, useColorScheme, View, TouchableOpacity, StyleSheet, Text } from 'react-native';
+import { StatusBar, useColorScheme, View, TouchableOpacity, StyleSheet, Text, AppState, AppStateStatus } from 'react-native';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -18,6 +18,8 @@ import ChatScreen from './src/screens/ChatScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import SmartInputScreen from './src/screens/SmartInputScreen';
 import AddTransactionScreen from './src/screens/AddTransactionScreen';
+import LockScreen from './src/screens/LockScreen';
+import { SecurityService } from './src/services/SecurityService';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -102,9 +104,6 @@ const TabNavigator = ({
         <CalendarScreen
           transactions={transactions}
           categories={categories}
-          onAddTransaction={handleAddTransaction}
-          onUpdateTransaction={handleUpdateTransaction}
-          onDeleteTransaction={handleDeleteTransaction}
           navigation={navigation}
           language={language}
           theme={theme}
@@ -125,8 +124,6 @@ const TabNavigator = ({
         <StatisticsScreen
           transactions={transactions}
           categories={categories}
-          onUpdateTransaction={handleUpdateTransaction}
-          onDeleteTransaction={handleDeleteTransaction}
           navigation={navigation}
           language={language}
           theme={theme}
@@ -196,133 +193,6 @@ const TabNavigator = ({
 );
 
 export default function App() {
-  const systemColorScheme = useColorScheme();
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [language, setLanguage] = useState<'Tiếng Việt' | 'English'>('Tiếng Việt');
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [categories, setCategories] = useState<Category[]>(CATEGORIES);
-  const [chatMessages, setChatMessages] = useState<Message[]>([]);
-  const [selectedPersonalityId, setSelectedPersonalityId] = useState('super_accountant');
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      await Database.init();
-
-      const [savedTheme, savedLang, savedPersonality] = await Promise.all([
-        Database.getMetadata('app_theme'),
-        Database.getMetadata('app_lang'),
-        Database.getMetadata('app_personality'),
-      ]);
-
-      if (savedTheme) setTheme(savedTheme as 'light' | 'dark');
-      if (savedLang) setLanguage(savedLang as 'Tiếng Việt' | 'English');
-      if (savedPersonality) setSelectedPersonalityId(savedPersonality);
-
-      const loadedTransactions = await Database.getTransactions();
-      setTransactions(loadedTransactions);
-
-      const loadedCategories = await Database.getCategories();
-      // Only set if we have categories, otherwise initialization in DB should have handled it or we use default state
-      if (loadedCategories.length > 0) {
-        setCategories(loadedCategories);
-      }
-
-      const loadedChat = await Database.getChatHistory();
-      setChatMessages(loadedChat);
-
-      setIsLoaded(true);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      setIsLoaded(true);
-    }
-  };
-
-  // Sync Theme/Lang to DB
-  useEffect(() => {
-    if (isLoaded) {
-      Database.setMetadata('app_theme', theme);
-    }
-  }, [theme, isLoaded]);
-
-  useEffect(() => {
-    if (isLoaded) {
-      Database.setMetadata('app_lang', language);
-    }
-  }, [language, isLoaded]);
-
-  useEffect(() => {
-    if (isLoaded) {
-      Database.setMetadata('app_personality', selectedPersonalityId);
-    }
-  }, [selectedPersonalityId, isLoaded]);
-
-  // DB Sync Wrappers
-  const handleAddTransaction = async (newTx: Omit<Transaction, 'id'>) => {
-    const tx: Transaction = {
-      ...newTx,
-      id: Math.random().toString(36).substr(2, 9),
-    };
-    await Database.addTransaction(tx);
-    setTransactions(prevTransactions => [tx, ...prevTransactions]);
-  };
-
-  const handleUpdateTransaction = async (updatedTx: Transaction) => {
-    await Database.updateTransaction(updatedTx);
-    setTransactions(transactions.map(tx => tx.id === updatedTx.id ? updatedTx : tx));
-  };
-
-  const handleDeleteTransaction = async (id: string) => {
-    await Database.deleteTransaction(id);
-    setTransactions(transactions.filter(tx => tx.id !== id));
-  };
-
-  const handleAddCategory = async (newCat: Category) => {
-    await Database.addCategory(newCat);
-    setCategories([...categories, newCat]);
-  };
-
-  const handleUpdateCategory = async (updatedCat: Category) => {
-    await Database.updateCategory(updatedCat);
-    setCategories(categories.map(cat => cat.id === updatedCat.id ? updatedCat : cat));
-  };
-
-  const handleDeleteCategory = async (id: string) => {
-    await Database.deleteCategory(id);
-    setCategories(categories.filter(cat => cat.id !== id));
-  };
-
-  // Chat message wrapper to sync append-only updates
-  const handleSetChatMessages = (newMessagesOrUpdater: Message[] | ((prev: Message[]) => Message[])) => {
-    // We need to calculate the next state to determine what to save
-    let nextMessages: Message[] = [];
-
-    // Check if it's a function or value
-    if (typeof newMessagesOrUpdater === 'function') {
-      nextMessages = newMessagesOrUpdater(chatMessages);
-    } else {
-      nextMessages = newMessagesOrUpdater;
-    }
-
-    // Detect added messages
-    if (nextMessages.length > chatMessages.length) {
-      const addedMessages = nextMessages.slice(chatMessages.length);
-      addedMessages.forEach(msg => Database.addChatMessage(msg));
-    } else if (nextMessages.length === 0 && chatMessages.length > 0) {
-      // Handle clear history if applicable
-      Database.clearChatHistory();
-    }
-
-    setChatMessages(nextMessages);
-  };
-
-  const navigationTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
-  const isDark = theme === 'dark';
-
   return (
     <ThemeProvider>
       <AppContent />
@@ -332,17 +202,38 @@ export default function App() {
 
 function AppContent() {
   const { theme, setTheme, isDark, colors } = useTheme();
-  const systemColorScheme = useColorScheme();
   const [language, setLanguage] = useState<'Tiếng Việt' | 'English'>('Tiếng Việt');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>(CATEGORIES);
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [selectedPersonalityId, setSelectedPersonalityId] = useState('super_accountant');
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
 
   useEffect(() => {
+    checkSecurity();
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
     loadData();
+    return () => {
+      subscription.remove();
+    };
   }, []);
+
+  const checkSecurity = async () => {
+    const enabled = await SecurityService.isEnabled();
+    if (enabled) {
+      setIsLocked(true);
+    }
+  };
+
+  const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+    if (nextAppState === 'background') {
+      const enabled = await SecurityService.isEnabled();
+      if (enabled) {
+        setIsLocked(true);
+      }
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -449,6 +340,10 @@ function AppContent() {
   };
 
   const navigationTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
+
+  if (isLocked) {
+    return <LockScreen onUnlock={() => setIsLocked(false)} />;
+  }
 
   return (
     <SafeAreaProvider>
@@ -527,3 +422,4 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
 });
+

@@ -271,4 +271,19 @@ export class Database {
             console.error('setMetadata error:', error);
         }
     }
+
+    static async clearAllData() {
+        try {
+            if (!this.db) return;
+            await this.db.execAsync(`
+                DELETE FROM transactions;
+                DELETE FROM categories;
+                DELETE FROM chat_history;
+                DELETE FROM metadata;
+            `);
+            console.log('All data cleared from SQLite');
+        } catch (error) {
+            console.error('clearAllData error:', error);
+        }
+    }
 }

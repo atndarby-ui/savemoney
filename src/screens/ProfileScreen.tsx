@@ -27,6 +27,8 @@ import { SyncService } from '../services/SyncService';
 import { NotificationService } from '../services/NotificationService';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { Database } from '../services/Database';
+import { SecurityService } from '../services/SecurityService';
 import { WebView } from 'react-native-webview';
 import { useTheme, ACCENT_COLORS, AccentColorKey } from '../context/ThemeContext';
 import { ThemedText, ThemedView, GlassView } from '../components/ThemedComponents';
@@ -57,6 +59,8 @@ interface Goal {
     reminderExactTime?: string; // ISO string for exact time
     notificationId?: string;
     customSoundUri?: string;
+    repeatCount?: number;
+    repeatInterval?: number;
 
     // Subscription specific
     billingCycle?: 'monthly' | 'yearly';
@@ -145,6 +149,26 @@ const translations = {
         authSuccess: 'Thành công',
         authError: 'Lỗi xác thực',
         deleteBackup: 'Xóa bản sao lưu trên mây',
+        resetData: 'Đặt lại dữ liệu',
+        resetDataConfirm: 'Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu không? Hành động này sẽ xóa tất cả giao dịch, danh mục, cài đặt và đưa ứng dụng về trạng thái ban đầu. KHÔNG THỂ HOÀN TÁC.',
+        appLock: 'Khóa ứng dụng',
+        setupPassword: 'Thiết lập mật khẩu',
+        changePassword: 'Đổi mật khẩu',
+        biometrics: 'Sinh trắc học',
+        enableBiometrics: 'Bật vân tay/FaceID',
+        manageSecurity: 'Quản lý bảo mật',
+        enterPassword: 'Nhập mật khẩu',
+        setPasswordTitle: 'Đặt mật khẩu mới',
+        oldPassword: 'Mật khẩu cũ',
+        newPassword: 'Mật khẩu mới',
+        confirmPassword: 'Xác nhận lại',
+        hintTitle: 'Gợi ý khôi phục',
+        hintQuestion: 'Câu hỏi gợi ý',
+        hintAnswer: 'Câu trả lời',
+        wrongPassword: 'Mật khẩu không đúng',
+        passwordsNoMatch: 'Mật khẩu không khớp',
+        securityEnabled: 'Đã bật bảo mật',
+        securityDisabled: 'Chưa bật bảo mật',
         // Reminders Strings
         addGoal: 'Thêm nhắc nhở', // Renamed
         editGoal: 'Sửa nhắc nhở', // Renamed
@@ -178,6 +202,8 @@ const translations = {
         inputPartner: 'Tên đối tác/người nợ',
         inputDebtAmount: 'Số tiền nợ',
         inputProof: 'Ảnh bằng chứng',
+        debtLending: 'Cho vay',
+        debtBorrowing: 'Đi vay',
 
         inputTaskTitle: 'Tiêu đề công việc',
         inputPriority: 'Độ ưu tiên',
@@ -213,6 +239,11 @@ const translations = {
         soundDefault: 'Mặc định',
         pickSound: 'Chọn từ tệp...',
         reminderExact: 'Giờ cụ thể',
+        repeatCount: 'Số lần nhắc lại',
+        repeatInterval: 'Khoảng cách (phút)',
+        stopNotification: 'Tắt chuông',
+        snoozeNotification: 'Nhắc lại sau',
+        doneNotification: 'Đã hoàn thành',
         // Tools Strings
         compoundInterest: 'Tính lãi kép',
         principal: 'Vốn ban đầu',
@@ -307,6 +338,26 @@ const translations = {
         authSuccess: 'Success',
         authError: 'Auth Error',
         deleteBackup: 'Delete Cloud Backup',
+        resetData: 'Reset Data',
+        resetDataConfirm: 'Are you sure you want to wipe ALL data? This will delete all transactions, categories, settings and reset the app to factory state. THIS CANNOT BE UNDONE.',
+        appLock: 'App Lock',
+        setupPassword: 'Setup Password',
+        changePassword: 'Change Password',
+        biometrics: 'Biometrics',
+        enableBiometrics: 'Enable Biometrics',
+        manageSecurity: 'Manage Security',
+        enterPassword: 'Enter Password',
+        setPasswordTitle: 'Set New Password',
+        oldPassword: 'Old Password',
+        newPassword: 'New Password',
+        confirmPassword: 'Confirm Password',
+        hintTitle: 'Recovery Hint',
+        hintQuestion: 'Hint Question',
+        hintAnswer: 'Hint Answer',
+        wrongPassword: 'Incorrect Password',
+        passwordsNoMatch: 'Passwords do not match',
+        securityEnabled: 'Security Enabled',
+        securityDisabled: 'Security Disabled',
         // Reminders Strings
         addGoal: 'Add Reminder', // Renamed
         editGoal: 'Edit Reminder', // Renamed
@@ -340,6 +391,8 @@ const translations = {
         inputPartner: 'Partner/Debtor Name',
         inputDebtAmount: 'Debt Amount',
         inputProof: 'Proof Image',
+        debtLending: 'Lending',
+        debtBorrowing: 'Borrowing',
 
         inputTaskTitle: 'Task Title',
         inputPriority: 'Priority',
@@ -375,6 +428,11 @@ const translations = {
         soundDefault: 'Default',
         pickSound: 'Pick from file...',
         reminderExact: 'Exact Time',
+        repeatCount: 'Repeat Count',
+        repeatInterval: 'Interval (mins)',
+        stopNotification: 'Stop Sound',
+        snoozeNotification: 'Snooze',
+        doneNotification: 'Mark Done',
         // Tools Strings
         compoundInterest: 'Compound Interest',
         principal: 'Principal',
@@ -451,6 +509,16 @@ export default function ProfileScreen({
     const [isPrivacyModalVisible, setIsPrivacyModalVisible] = useState(false);
     const [isSoundPickerVisible, setIsSoundPickerVisible] = useState(false);
     const [selectedSound, setSelectedSound] = useState('Default');
+
+    // Security State
+    const [isSecurityModalVisible, setIsSecurityModalVisible] = useState(false);
+    const [isSecurityEnabled, setIsSecurityEnabled] = useState(false); // Helper for UI
+    const [passInput, setPassInput] = useState('');
+    const [newPassInput, setNewPassInput] = useState('');
+    const [confirmPassInput, setConfirmPassInput] = useState('');
+    const [hintQInput, setHintQInput] = useState('');
+    const [hintAInput, setHintAInput] = useState('');
+    const [securityStep, setSecurityStep] = useState<'menu' | 'setup' | 'change' | 'check' | 'hint' | 'disable'>('menu');
 
     const NOTIF_SOUNDS = [
         { id: 'Default', name: t.soundDefault },
@@ -530,6 +598,9 @@ export default function ProfileScreen({
     const [cpYears, setCpYears] = useState('');
     const [cpResult, setCpResult] = useState<{ futureValue: number; totalInterest: number; totalInvested: number } | null>(null);
 
+    const [repeatCount, setRepeatCount] = useState<number>(1);
+    const [repeatInterval, setRepeatInterval] = useState<number>(5); // Default 5 mins
+
     // Dynamic Tools State
     const [dynamicTools, setDynamicTools] = useState<Tool[]>([]);
     const [activeTool, setActiveTool] = useState<Tool | null>(null);
@@ -564,9 +635,6 @@ export default function ProfileScreen({
             if (user) {
                 setUserEmail(user.email || '');
                 setEditEmail(user.email || '');
-            } else {
-                // Keep local override if exists or reset?
-                // For now, let's keep local state but maybe indicate guest
             }
         });
 
@@ -580,7 +648,6 @@ export default function ProfileScreen({
             setDynamicTools(toolsList);
         }, (error) => {
             console.error("Firestore Check Error:", error.message);
-            // Optionally set an error state here if you want to show it in UI
         });
 
         return () => {
@@ -588,6 +655,44 @@ export default function ProfileScreen({
             unsubscribeTools();
         };
     }, []);
+
+    useEffect(() => {
+        checkSecurityStatus();
+    }, [isSecurityModalVisible]);
+
+    const checkSecurityStatus = async () => {
+        const enabled = await SecurityService.isEnabled();
+        setIsSecurityEnabled(enabled);
+    };
+
+    const handleResetData = () => {
+        Alert.alert(
+            t.resetData,
+            t.resetDataConfirm,
+            [
+                { text: t.cancel, style: 'cancel' },
+                {
+                    text: t.resetData,
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await Database.clearAllData();
+                            await AsyncStorage.clear();
+                            await SecurityService.clearSecuritySettings();
+                            onRestore(); // Reloads data
+                            Alert.alert(t.authSuccess, 'App has been reset.');
+                            // Optionally logout firebase?
+                            if (auth.currentUser) await signOut(auth);
+                        } catch (e: any) {
+                            console.error(e);
+                            Alert.alert('Error', e.message);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
 
     const loadUserInfo = async () => {
         try {
@@ -764,44 +869,103 @@ export default function ProfileScreen({
 
         let notifId;
         let triggerDate: Date | null = null;
+        let notifTitle = '';
+        let notifBody = '';
 
-        if (reminderEnabled && goalDeadline) {
+        if (reminderEnabled && (goalDeadline || goalType === 'plan')) {
             if (reminderType === 'exact') {
-                // Parse deadline date string (DD/MM/YYYY)
-                const parts = goalDeadline.split('/');
-                if (parts.length === 3) {
-                    const day = parseInt(parts[0], 10);
-                    const month = parseInt(parts[1], 10) - 1;
-                    const year = parseInt(parts[2], 10);
-                    const baseDate = new Date(year, month, day);
+                if (goalDeadline) {
+                    // Parse deadline date string (DD/MM/YYYY)
+                    const parts = goalDeadline.split('/');
+                    if (parts.length === 3) {
+                        const day = parseInt(parts[0], 10);
+                        const month = parseInt(parts[1], 10) - 1;
+                        const year = parseInt(parts[2], 10);
+                        const baseDate = new Date(year, month, day);
 
-                    // Apply exact time hours/minutes
-                    triggerDate = new Date(baseDate);
-                    triggerDate.setHours(exactTime.getHours(), exactTime.getMinutes(), 0, 0);
+                        // Apply exact time hours/minutes
+                        triggerDate = new Date(baseDate);
+                        triggerDate.setHours(exactTime.getHours(), exactTime.getMinutes(), 0, 0);
+                    }
+                } else if (goalType === 'plan') {
+                    // Plan with frequency (Daily/Weekly/Custom)
+                    if (planFrequency === 'custom' && planCustomStartDate) {
+                        const parts = planCustomStartDate.split('/');
+                        if (parts.length === 3) {
+                            const day = parseInt(parts[0], 10);
+                            const month = parseInt(parts[1], 10) - 1;
+                            const year = parseInt(parts[2], 10);
+                            triggerDate = new Date(year, month, day);
+                            triggerDate.setHours(exactTime.getHours(), exactTime.getMinutes(), 0, 0);
+                        }
+                    } else {
+                        // Default to today/next occurrence for Daily/Weekly
+                        triggerDate = new Date();
+                        triggerDate.setHours(exactTime.getHours(), exactTime.getMinutes(), 0, 0);
+
+                        if (planFrequency === 'weekly') {
+                            // Find next day in planWeeklyDays
+                            let today = triggerDate.getDay();
+                            let daysToWait = -1;
+                            for (let i = 0; i < 7; i++) {
+                                let checkDay = (today + i) % 7;
+                                if (planWeeklyDays.includes(checkDay)) {
+                                    if (i === 0 && triggerDate <= new Date()) {
+                                        // Today but already passed, skip to next check
+                                        continue;
+                                    }
+                                    daysToWait = i;
+                                    break;
+                                }
+                            }
+                            if (daysToWait !== -1) {
+                                triggerDate.setDate(triggerDate.getDate() + daysToWait);
+                            } else {
+                                triggerDate = null;
+                            }
+                        } else if (planFrequency === 'daily') {
+                            if (triggerDate <= new Date()) {
+                                // If time passed today, schedule for tomorrow
+                                triggerDate.setDate(triggerDate.getDate() + 1);
+                            }
+                        }
+                    }
                 }
-            } else {
-                triggerDate = NotificationService.calculateTriggerDate(goalDeadline, reminderOffset);
+            } else if (goalDeadline || (goalType === 'plan' && planCustomStartDate)) {
+                triggerDate = NotificationService.calculateTriggerDate(goalDeadline || planCustomStartDate, reminderOffset);
             }
 
+            console.log(`[handleSaveGoal] Calculated triggerDate: ${triggerDate?.toLocaleString()}`);
             if (triggerDate && triggerDate > new Date()) {
                 // Cancel old one
                 if (editingGoal?.notificationId) {
+                    console.log('Canceling old notification:', editingGoal.notificationId);
                     await NotificationService.cancelNotification(editingGoal.notificationId);
                 }
 
                 // Title based on type
-                let notifTitle = t.goalsTitle;
+                notifTitle = t.goalsTitle;
                 if (goalType === 'debt') notifTitle = `${t.typeDebt}: ${debtPartner}`;
                 else if (goalType === 'task') notifTitle = `${t.typeTask}: ${goalTitle}`;
                 else if (goalType === 'subscription') notifTitle = `${t.typeSubscription}: ${goalTitle}`;
                 else if (goalType === 'plan') notifTitle = `${t.typePlan}: ${goalTitle}`;
 
                 // Detailed Body
-                let notifBody = `${t.goalAmount}: ${formatLargeNum(parseFloat(goalAmount))}`;
+                const amountNum = parseFloat(goalAmount);
+                notifBody = !isNaN(amountNum) && amountNum > 0
+                    ? `${t.goalAmount}: ${formatLargeNum(amountNum)}`
+                    : (goalTitle || '');
+
                 if (goalType === 'task' && subtasks.length > 0) {
                     const taskLines = subtasks.map(s => `• ${s.time ? `[${s.time}] ` : ''}${s.title}`).join('\n');
                     notifBody = `${t.taskDetails}:\n${taskLines}`;
                 }
+
+                console.log('--- Scheduling Notification ---');
+                console.log('Title:', notifTitle);
+                console.log('Body:', notifBody);
+                console.log('Trigger Date:', triggerDate.toLocaleString());
+                console.log('Offset (ms):', triggerDate.getTime() - Date.now());
 
                 // Reference Image
                 const notifImage = goalType === 'task' ? taskRefImg :
@@ -809,20 +973,40 @@ export default function ProfileScreen({
                         goalType === 'subscription' ? subServiceLogo :
                             goalType === 'plan' ? planInspoImg : undefined;
 
-                notifId = await NotificationService.scheduleReminder(
-                    notifTitle,
-                    notifBody,
-                    triggerDate,
-                    soundType === 'custom' ? customSound?.uri : undefined,
-                    notifImage || undefined
-                );
+                const isRepeatingPlan = goalType === 'plan' && planFrequency !== 'custom';
+                const scheduledIds: string[] = [];
+                const finalGoalId = editingGoal ? editingGoal.id : Date.now().toString();
+
+                for (let i = 0; i < repeatCount; i++) {
+                    const scheduledTrigger = new Date(triggerDate.getTime() + i * repeatInterval * 60000);
+                    const id = await NotificationService.scheduleReminder(
+                        notifTitle,
+                        notifBody,
+                        scheduledTrigger,
+                        soundType === 'custom' ? customSound?.uri : undefined,
+                        notifImage || undefined,
+                        'reminder',
+                        isRepeatingPlan && i === 0,
+                        finalGoalId
+                    );
+                    if (id) scheduledIds.push(id);
+                }
+
+                notifId = scheduledIds.join(',');
+                console.log('New Notification IDs:', notifId);
+                console.log('------------------------------');
+            } else {
+                console.log('No notification scheduled: triggerDate in past or null. triggerDate:', triggerDate);
             }
         } else if (editingGoal?.notificationId) {
+            console.log('Reminder disabled or deadline missing. Canceling notification:', editingGoal.notificationId);
             await NotificationService.cancelNotification(editingGoal.notificationId);
         }
 
+        const finalGoalIdForObj = editingGoal ? editingGoal.id : (notifId ? notifId.split(',')[0] : Date.now().toString());
+
         const newGoal: Goal = {
-            id: editingGoal ? editingGoal.id : Date.now().toString(),
+            id: finalGoalIdForObj,
             type: goalType,
             title: goalTitle || debtPartner || 'Untitled', // Fallback
             targetAmount: parseFloat(goalAmount) || 0,
@@ -835,6 +1019,8 @@ export default function ProfileScreen({
             reminderExactTime: reminderType === 'exact' ? exactTime.toISOString() : undefined,
             notificationId: notifId || undefined,
             customSoundUri: (reminderEnabled && soundType === 'custom') ? customSound?.uri : undefined,
+            repeatCount: reminderEnabled ? repeatCount : 1,
+            repeatInterval: reminderEnabled ? repeatInterval : 5,
 
             // Subscription specific
             billingCycle: goalType === 'subscription' ? subBillingCycle : undefined,
@@ -857,6 +1043,13 @@ export default function ProfileScreen({
             customStartDate: goalType === 'plan' && planFrequency === 'custom' ? planCustomStartDate : undefined,
             inspirationImage: goalType === 'plan' ? (planInspoImg || undefined) : undefined,
         };
+
+        console.log('[handleSaveGoal] Saving Goal Image:',
+            goalType === 'plan' ? newGoal.inspirationImage :
+                goalType === 'task' ? newGoal.referenceImage :
+                    goalType === 'debt' ? newGoal.proofImage :
+                        newGoal.serviceLogo
+        );
 
         let newGoals;
         if (editingGoal) {
@@ -908,20 +1101,24 @@ export default function ProfileScreen({
         if (goal.type === 'subscription') {
             setSubBillingCycle(goal.billingCycle || 'monthly');
             setSubServiceLogo(goal.serviceLogo || null);
+            console.log('[handleEditGoal] Loaded subServiceLogo:', goal.serviceLogo);
         } else if (goal.type === 'debt') {
             setDebtPartner(goal.partnerName || '');
             setDebtOrCredit(goal.debtType || 'lending');
             setDebtProofImg(goal.proofImage || null);
+            console.log('[handleEditGoal] Loaded debtProofImage:', goal.proofImage);
         } else if (goal.type === 'task') {
             setTaskPriority(goal.priority || 'medium');
             setTaskRefImg(goal.referenceImage || null);
             setSubtasks(goal.subtasks || []);
+            console.log('[handleEditGoal] Loaded taskRefImage:', goal.referenceImage);
         } else if (goal.type === 'plan') {
             setPlanFrequency(goal.frequency || 'daily');
             setPlanWeeklyDays(goal.weeklyDays || [1]);
             setPlanCustomInterval(goal.customInterval || 1);
             setPlanCustomStartDate(goal.customStartDate || '');
             setPlanInspoImg(goal.inspirationImage || null);
+            console.log('[handleEditGoal] Loaded planInspoImage:', goal.inspirationImage);
         }
 
         // Set Notification State
@@ -944,6 +1141,10 @@ export default function ProfileScreen({
             setSoundType('default');
             setCustomSound(null);
         }
+
+        setRepeatCount(goal.repeatCount || 1);
+        setRepeatInterval(goal.repeatInterval || 5);
+
         setIsGoalModalVisible(true);
     };
 
@@ -978,6 +1179,8 @@ export default function ProfileScreen({
         setExactTime(new Date());
         setSoundType('default');
         setCustomSound(null);
+        setRepeatCount(1);
+        setRepeatInterval(5);
     };
 
     const pickGoalImage = async (setter: (uri: string) => void) => {
@@ -992,27 +1195,25 @@ export default function ProfileScreen({
         }
     };
 
-    const handleDateChange = (event: any, selectedDate?: Date) => {
-        if (event.type === 'dismissed') {
+    const handleDateChange = (event: any, selectedDate?: Date, forceIos: boolean = false) => {
+        if (event.type === 'dismissed' && !forceIos) {
             setShowDatePicker(false);
             return;
         }
 
         const currentDate = selectedDate || tempDate;
-        setShowDatePicker(Platform.OS === 'ios'); // Keep open on iOS, close on Android
+        setShowDatePicker(Platform.OS === 'ios' && !forceIos);
         setTempDate(currentDate);
 
-        if (Platform.OS !== 'ios') {
-            // Android: set immediately and close
+        if (Platform.OS !== 'ios' || forceIos) {
+            // Finalize and format
             const formatted = datePickerMode === 'time'
                 ? currentDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
                 : currentDate.toLocaleDateString('en-GB'); // DD/MM/YYYY
 
-            // Set the appropriate field based on target
             if (datePickerTarget === 'customStart') {
                 setPlanCustomStartDate(formatted);
             } else {
-                // renewal, dueDate, and deadline all use goalDeadline
                 setGoalDeadline(formatted);
             }
             setShowDatePicker(false);
@@ -1064,21 +1265,23 @@ export default function ProfileScreen({
     // Time Picker independent of Date Picker
     const [showExactTimePicker, setShowExactTimePicker] = useState(false);
 
-    const handleExactTimeChange = (event: any, selectedDate?: Date) => {
-        if (event.type === 'dismissed') {
+    const handleExactTimeChange = (event: any, selectedDate?: Date, forceIos: boolean = false) => {
+        if (event.type === 'dismissed' && !forceIos) {
             setShowExactTimePicker(false);
             return;
         }
         const currentDate = selectedDate || exactTime;
-        setShowExactTimePicker(Platform.OS === 'ios');
+        setShowExactTimePicker(Platform.OS === 'ios' && !forceIos);
         setExactTime(currentDate);
 
-        if (datePickerTarget === 'subtaskTime') {
+        if (datePickerTarget === 'subtaskTime' || forceIos) {
             const formattedTime = currentDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-            setNewSubtaskTime(formattedTime);
+            if (datePickerTarget === 'subtaskTime') {
+                setNewSubtaskTime(formattedTime);
+            }
         }
 
-        if (Platform.OS !== 'ios') {
+        if (Platform.OS !== 'ios' || forceIos) {
             setShowExactTimePicker(false);
         }
     };
@@ -1202,10 +1405,10 @@ export default function ProfileScreen({
 
     return (
         <ThemedView style={styles.container}>
-            <View style={[styles.tabContainer, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 24 }}>
+            <View style={[styles.tabContainer, { borderBottomColor: colors.border, borderBottomWidth: 1, paddingHorizontal: 16, paddingBottom: 8 }]}>
+                <View style={{ flexDirection: 'row', width: '100%', gap: 4 }}>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'profile' && { backgroundColor: colors.primary }]}
+                        style={[styles.tab, { flex: 1, alignItems: 'center' }, activeTab === 'profile' && { backgroundColor: colors.primary }]}
                         onPress={() => setActiveTab('profile')}
                     >
                         <Text style={[styles.tabText, { color: activeTab === 'profile' ? '#FFF' : colors.textSecondary }]}>
@@ -1213,7 +1416,7 @@ export default function ProfileScreen({
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'goals' && { backgroundColor: colors.primary }]}
+                        style={[styles.tab, { flex: 1, alignItems: 'center' }, activeTab === 'goals' && { backgroundColor: colors.primary }]}
                         onPress={() => setActiveTab('goals')}
                     >
                         <Text style={[styles.tabText, { color: activeTab === 'goals' ? '#FFF' : colors.textSecondary }]}>
@@ -1221,7 +1424,7 @@ export default function ProfileScreen({
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'tools' && { backgroundColor: colors.primary }]}
+                        style={[styles.tab, { flex: 1, alignItems: 'center' }, activeTab === 'tools' && { backgroundColor: colors.primary }]}
                         onPress={() => setActiveTab('tools')}
                     >
                         <Text style={[styles.tabText, { color: activeTab === 'tools' ? '#FFF' : colors.textSecondary }]}>
@@ -1229,14 +1432,14 @@ export default function ProfileScreen({
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.tab, activeTab === 'categories' && { backgroundColor: colors.primary }]}
+                        style={[styles.tab, { flex: 1, alignItems: 'center' }, activeTab === 'categories' && { backgroundColor: colors.primary }]}
                         onPress={() => setActiveTab('categories')}
                     >
                         <Text style={[styles.tabText, { color: activeTab === 'categories' ? '#FFF' : colors.textSecondary }]}>
                             {t.categoriesTitle}
                         </Text>
                     </TouchableOpacity>
-                </ScrollView>
+                </View>
             </View>
 
             <ScrollView
@@ -1347,6 +1550,20 @@ export default function ProfileScreen({
                                     iconBgColor="#F472B6" // Light pink
                                     label={t.security}
                                     onPress={() => setIsPrivacyModalVisible(true)}
+                                />
+                                <MenuItem
+                                    icon="shield-checkmark-outline"
+                                    iconBgColor="#10B981" // Emerald
+                                    label={t.appLock}
+                                    value={isSecurityEnabled ? t.securityEnabled : t.securityDisabled}
+                                    valueColor={isSecurityEnabled ? colors.success : colors.textSecondary}
+                                    onPress={() => setIsSecurityModalVisible(true)}
+                                />
+                                <MenuItem
+                                    icon="refresh-outline"
+                                    iconBgColor="#6B7280" // Gray
+                                    label={t.resetData}
+                                    onPress={handleResetData}
                                     last={!currentUser}
                                 />
                                 {currentUser && (
@@ -1511,58 +1728,64 @@ export default function ProfileScreen({
                                     <ThemedText variant="caption" style={styles.sectionTitle}>{sectionTitle}</ThemedText>
                                     <ThemedView variant="surface" style={{ padding: 0, overflow: 'hidden', borderRadius: 24, borderWidth: 1, borderColor: colors.border }}>
                                         {typeGoals.map((g, idx) => (
-                                            <TouchableOpacity
-                                                key={g.id}
-                                                activeOpacity={0.7}
-                                                onPress={() => handleEditGoal(g)}
-                                            >
-                                                <View style={styles.menuItem}>
-                                                    <View style={styles.menuLeft}>
+                                            <View key={g.id}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                    {/* Primary Action Area (Edit) */}
+                                                    <TouchableOpacity
+                                                        activeOpacity={0.7}
+                                                        onPress={() => handleEditGoal(g)}
+                                                        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', padding: 16 }}
+                                                    >
                                                         <View style={[styles.menuIconBox, {
-                                                            backgroundColor: type === 'debt' ? '#E0F2F1' :
+                                                            backgroundColor: type === 'debt' ? (g.debtType === 'borrowing' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)') :
                                                                 type === 'subscription' ? '#F3E5F5' :
                                                                     type === 'task' ? '#FFF3E0' :
                                                                         type === 'plan' ? '#E1F5FE' : '#EEF2FF'
                                                         }]}>
                                                             <Ionicons
                                                                 name={
-                                                                    type === 'debt' ? 'swap-horizontal' :
+                                                                    type === 'debt' ? (g.debtType === 'borrowing' ? 'arrow-down-circle' : 'arrow-up-circle') :
                                                                         type === 'subscription' ? 'card' :
                                                                             type === 'task' ? 'checkbox' :
                                                                                 type === 'plan' ? 'flag' : 'rocket'
                                                                 }
                                                                 size={20}
                                                                 color={
-                                                                    type === 'debt' ? '#00796B' :
+                                                                    type === 'debt' ? (g.debtType === 'borrowing' ? '#EF4444' : '#10B981') :
                                                                         type === 'subscription' ? '#8E24AA' :
                                                                             type === 'task' ? '#EF6C00' :
                                                                                 type === 'plan' ? '#0288D1' : '#6366F1'
                                                                 }
                                                             />
                                                         </View>
-                                                        <View>
-                                                            <ThemedText variant="bodyBold">{g.title || g.partnerName}</ThemedText>
-                                                            <ThemedText variant="caption" style={{ color: colors.textSecondary }}>
-                                                                {type === 'debt' ? `${t.inputDebtAmount}: ${formatLargeNum(g.targetAmount)}` :
-                                                                    (g.deadline || t.goalDeadline)}
+                                                        <View style={{ flex: 1, marginLeft: 16 }}>
+                                                            <ThemedText variant="bodyBold" numberOfLines={1}>{g.title || g.partnerName}</ThemedText>
+                                                            <ThemedText variant="caption" style={{ color: colors.textSecondary }} numberOfLines={1}>
+                                                                {type === 'debt' ? `${g.debtType === 'borrowing' ? t.debtBorrowing : t.debtLending}: ${formatLargeNum(g.targetAmount)}` :
+                                                                    type === 'plan' ? `${t.inputFrequency}: ${t[`freq${g.frequency?.charAt(0).toUpperCase()}${g.frequency?.slice(1)}` as keyof typeof t] || g.frequency}${g.reminderExactTime ? ` - ${new Date(g.reminderExactTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}` :
+                                                                        (g.deadline || t.goalDeadline)}
                                                             </ThemedText>
                                                         </View>
-                                                    </View>
-                                                    <View style={styles.menuRight}>
-                                                        {(type === 'debt' || type === 'plan' || type === 'subscription') && g.targetAmount > 0 && (
-                                                            <ThemedText style={{ color: colors.textSecondary, fontSize: 13, marginRight: 8 }}>
-                                                                {formatLargeNum(g.targetAmount)}
-                                                            </ThemedText>
+                                                        {(g.proofImage || g.referenceImage || g.inspirationImage || g.serviceLogo) && (
+                                                            <Image
+                                                                source={{ uri: g.proofImage || g.referenceImage || g.inspirationImage || g.serviceLogo }}
+                                                                style={{ width: 34, height: 34, borderRadius: 8, marginRight: 0 }}
+                                                            />
                                                         )}
-                                                        <TouchableOpacity onPress={() => handleDeleteGoal(g.id)}>
-                                                            <Ionicons name="trash-outline" size={18} color={colors.error} />
-                                                        </TouchableOpacity>
-                                                    </View>
+                                                    </TouchableOpacity>
+
+                                                    {/* Standalone Delete Button - Spaced Out */}
+                                                    <TouchableOpacity
+                                                        onPress={() => handleDeleteGoal(g.id)}
+                                                        style={{ padding: 20, paddingRight: 24 }}
+                                                    >
+                                                        <Ionicons name="trash-outline" size={20} color={colors.error} />
+                                                    </TouchableOpacity>
                                                 </View>
                                                 {idx !== typeGoals.length - 1 && (
-                                                    <View style={{ height: 1, backgroundColor: colors.border, marginLeft: 64 }} />
+                                                    <View style={{ height: 1, backgroundColor: colors.border, marginLeft: 64, marginRight: 20 }} />
                                                 )}
-                                            </TouchableOpacity>
+                                            </View>
                                         ))}
                                     </ThemedView>
                                 </View>
@@ -1823,7 +2046,7 @@ export default function ProfileScreen({
                 onRequestClose={() => setIsGoalModalVisible(false)}
             >
                 <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+                    <View style={[styles.modalContent, isDark && styles.modalContentDark, { maxWidth: 550, width: '90%', alignSelf: 'center' }]}>
                         <Text style={[styles.modalTitle, isDark && styles.textDark]}>
                             {editingGoal ? t.editGoal : t.addGoal}
                         </Text>
@@ -2260,6 +2483,34 @@ export default function ProfileScreen({
                                                 </View>
                                             </TouchableOpacity>
                                         </View>
+
+                                        {/* Repeat Settings */}
+                                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{ fontSize: 10, color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 4 }}>{t.repeatCount}</Text>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#4B5563' : '#E5E7EB', borderRadius: 12, paddingHorizontal: 8 }}>
+                                                    <TouchableOpacity onPress={() => setRepeatCount(Math.max(1, repeatCount - 1))} style={{ padding: 8 }}>
+                                                        <Ionicons name="remove-circle-outline" size={20} color={isDark ? '#FFF' : '#374151'} />
+                                                    </TouchableOpacity>
+                                                    <Text style={{ flex: 1, textAlign: 'center', color: isDark ? '#FFF' : '#374151', fontWeight: 'bold' }}>{repeatCount}x</Text>
+                                                    <TouchableOpacity onPress={() => setRepeatCount(Math.min(10, repeatCount + 1))} style={{ padding: 8 }}>
+                                                        <Ionicons name="add-circle-outline" size={20} color={isDark ? '#FFF' : '#374151'} />
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{ fontSize: 10, color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 4 }}>{t.repeatInterval}</Text>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#4B5563' : '#E5E7EB', borderRadius: 12, paddingHorizontal: 8 }}>
+                                                    <TouchableOpacity onPress={() => setRepeatInterval(Math.max(1, repeatInterval - 5))} style={{ padding: 8 }}>
+                                                        <Ionicons name="remove-circle-outline" size={20} color={isDark ? '#FFF' : '#374151'} />
+                                                    </TouchableOpacity>
+                                                    <Text style={{ flex: 1, textAlign: 'center', color: isDark ? '#FFF' : '#374151', fontWeight: 'bold' }}>{repeatInterval}p</Text>
+                                                    <TouchableOpacity onPress={() => setRepeatInterval(Math.min(60, repeatInterval + 5))} style={{ padding: 8 }}>
+                                                        <Ionicons name="add-circle-outline" size={20} color={isDark ? '#FFF' : '#374151'} />
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                        </View>
                                     </View>
                                 )}
                             </View>
@@ -2348,53 +2599,60 @@ export default function ProfileScreen({
                                 <Text style={styles.saveButtonText}>{t.save}</Text>
                             </TouchableOpacity>
                         </View>
-                        {showDatePicker && (
-                            <RNDateTimePicker
-                                value={tempDate}
-                                mode={datePickerMode}
-                                is24Hour={true}
-                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                onChange={handleDateChange}
-                            />
-                        )}
-                        {showExactTimePicker && (
-                            <RNDateTimePicker
-                                value={exactTime}
-                                mode="time"
-                                is24Hour={true}
-                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                onChange={handleExactTimeChange}
-                            />
-                        )}
                         {Platform.OS === 'ios' && (showDatePicker || showExactTimePicker) && (
                             <View style={{
-                                position: 'absolute',
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                backgroundColor: isDark ? '#1F2937' : 'white',
-                                padding: 12,
                                 flexDirection: 'row',
-                                justifyContent: 'flex-end',
-                                gap: 20,
-                                borderTopWidth: 1,
-                                borderTopColor: isDark ? '#374151' : '#E5E7EB',
-                                borderBottomLeftRadius: 24,
-                                borderBottomRightRadius: 24,
-                                zIndex: 1000
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                paddingHorizontal: 20,
+                                paddingVertical: 15,
+                                borderBottomWidth: 1,
+                                borderBottomColor: isDark ? '#374151' : '#E5E7EB',
+                                backgroundColor: isDark ? '#2D3748' : '#F7FAFC',
+                                borderTopLeftRadius: 24,
+                                borderTopRightRadius: 24,
                             }}>
                                 <TouchableOpacity onPress={() => { setShowExactTimePicker(false); setShowDatePicker(false); }}>
-                                    <Text style={{ color: colors.error || 'red', fontSize: 16, fontWeight: '500' }}>
+                                    <Text style={{ color: colors.error || '#FF3B30', fontSize: 17, fontWeight: '600' }}>
                                         {language === 'Tiếng Việt' ? 'Hủy' : 'Cancel'}
                                     </Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => { setShowExactTimePicker(false); setShowDatePicker(false); }}>
-                                    <Text style={{ color: colors.primary || '#007AFF', fontSize: 16, fontWeight: 'bold' }}>
+                                <TouchableOpacity onPress={() => {
+                                    if (showDatePicker) handleDateChange({ type: 'set' }, tempDate, true);
+                                    if (showExactTimePicker) handleExactTimeChange({ type: 'set' }, exactTime, true);
+                                    setShowExactTimePicker(false);
+                                    setShowDatePicker(false);
+                                }}>
+                                    <Text style={{ color: colors.primary || '#007AFF', fontSize: 17, fontWeight: 'bold' }}>
                                         {language === 'Tiếng Việt' ? 'Xong' : 'Done'}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
                         )}
+                        <View style={{ backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderBottomLeftRadius: 24, borderBottomRightRadius: 24, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+                            {showDatePicker && (
+                                <RNDateTimePicker
+                                    value={tempDate}
+                                    mode={datePickerMode}
+                                    is24Hour={true}
+                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                    onChange={handleDateChange}
+                                    textColor={isDark ? '#FFFFFF' : '#000000'}
+                                    style={{ height: 200, width: '100%', backgroundColor: isDark ? '#1F2937' : '#FFFFFF' }}
+                                />
+                            )}
+                            {showExactTimePicker && (
+                                <RNDateTimePicker
+                                    value={exactTime}
+                                    mode="time"
+                                    is24Hour={true}
+                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                    onChange={handleExactTimeChange}
+                                    textColor={isDark ? '#FFFFFF' : '#000000'}
+                                    style={{ height: 200, width: '100%', backgroundColor: isDark ? '#1F2937' : '#FFFFFF' }}
+                                />
+                            )}
+                        </View>
                     </View>
                 </View>
             </Modal>
@@ -2917,6 +3175,279 @@ export default function ProfileScreen({
                     </View>
                 </View>
             </Modal>
+            {/* Security Modal */}
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={isSecurityModalVisible}
+                onRequestClose={() => {
+                    setIsSecurityModalVisible(false);
+                    setSecurityStep('menu');
+                    setPassInput('');
+                    setNewPassInput('');
+                    setConfirmPassInput('');
+                }}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, isDark && styles.modalContentDark, { height: 'auto', maxHeight: '80%' }]}>
+                        <ThemedText variant="h3" style={styles.modalTitle}>
+                            {t.manageSecurity}
+                        </ThemedText>
+
+                        {!isSecurityEnabled && (
+                            <View>
+                                <ThemedText style={styles.inputLabel}>{t.newPassword}</ThemedText>
+                                <TextInput
+                                    style={[styles.input, isDark && styles.inputDark]}
+                                    value={newPassInput}
+                                    onChangeText={setNewPassInput}
+                                    secureTextEntry
+                                    placeholder="******"
+                                    placeholderTextColor="#9CA3AF"
+                                    keyboardType="numeric"
+                                />
+
+                                <ThemedText style={styles.inputLabel}>{t.confirmPassword}</ThemedText>
+                                <TextInput
+                                    style={[styles.input, isDark && styles.inputDark]}
+                                    value={confirmPassInput}
+                                    onChangeText={setConfirmPassInput}
+                                    secureTextEntry
+                                    placeholder="******"
+                                    placeholderTextColor="#9CA3AF"
+                                    keyboardType="numeric"
+                                />
+
+                                <View style={styles.modalButtons}>
+                                    <TouchableOpacity
+                                        style={[styles.modalButton, styles.cancelButton, { flex: 1 }]}
+                                        onPress={() => setIsSecurityModalVisible(false)}
+                                    >
+                                        <Text style={styles.cancelButtonText}>{t.cancel}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.modalButton, { backgroundColor: colors.primary, flex: 1 }]}
+                                        onPress={async () => {
+                                            if (newPassInput.length < 4) {
+                                                Alert.alert('Error', 'Password too short');
+                                                return;
+                                            }
+                                            if (newPassInput !== confirmPassInput) {
+                                                Alert.alert('Error', t.passwordsNoMatch);
+                                                return;
+                                            }
+                                            await SecurityService.setPassword(newPassInput);
+                                            await SecurityService.setEnabled(true);
+                                            await checkSecurityStatus();
+                                            setIsSecurityModalVisible(false);
+                                            setNewPassInput('');
+                                            setConfirmPassInput('');
+                                        }}
+                                    >
+                                        <Text style={styles.saveButtonText}>{t.save}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+
+                        {isSecurityEnabled && securityStep === 'menu' && (
+                            <View style={{ gap: 12 }}>
+                                <MenuItem
+                                    icon="key-outline"
+                                    label={t.changePassword}
+                                    onPress={() => setSecurityStep('change')}
+                                />
+                                <MenuItem
+                                    icon="finger-print-outline"
+                                    label={t.enableBiometrics}
+                                    onPress={async () => {
+                                        const current = await SecurityService.isBiometricsEnabled();
+                                        const avail = await SecurityService.hasHardwareAsync();
+                                        if (!avail) {
+                                            Alert.alert('Not Supported', 'Biometrics not available on this device');
+                                            return;
+                                        }
+                                        await SecurityService.setBiometricsEnabled(!current);
+                                        Alert.alert('Success', !current ? 'Biometrics Enabled' : 'Biometrics Disabled');
+                                    }}
+                                />
+                                <MenuItem
+                                    icon="help-buoy-outline"
+                                    label={t.hintTitle}
+                                    onPress={() => setSecurityStep('hint')}
+                                />
+
+                                <TouchableOpacity
+                                    style={[styles.modalButton, { backgroundColor: colors.error, marginTop: 20 }]}
+                                    onPress={() => setSecurityStep('disable')}
+                                >
+                                    <Text style={styles.saveButtonText}>Disable Security</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[styles.modalButton, styles.cancelButton, { marginTop: 10 }]}
+                                    onPress={() => setIsSecurityModalVisible(false)}
+                                >
+                                    <Text style={styles.cancelButtonText}>{t.cancel}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        {isSecurityEnabled && securityStep === 'change' && (
+                            <View>
+                                <ThemedText style={styles.inputLabel}>{t.oldPassword}</ThemedText>
+                                <TextInput
+                                    style={[styles.input, isDark && styles.inputDark]}
+                                    value={passInput}
+                                    onChangeText={setPassInput}
+                                    secureTextEntry
+                                    keyboardType="numeric"
+                                />
+                                <ThemedText style={styles.inputLabel}>{t.newPassword}</ThemedText>
+                                <TextInput
+                                    style={[styles.input, isDark && styles.inputDark]}
+                                    value={newPassInput}
+                                    onChangeText={setNewPassInput}
+                                    secureTextEntry
+                                    keyboardType="numeric"
+                                />
+                                <ThemedText style={styles.inputLabel}>{t.confirmPassword}</ThemedText>
+                                <TextInput
+                                    style={[styles.input, isDark && styles.inputDark]}
+                                    value={confirmPassInput}
+                                    onChangeText={setConfirmPassInput}
+                                    secureTextEntry
+                                    keyboardType="numeric"
+                                />
+
+                                <View style={styles.modalButtons}>
+                                    <TouchableOpacity
+                                        style={[styles.modalButton, styles.cancelButton, { flex: 1 }]}
+                                        onPress={() => {
+                                            setSecurityStep('menu');
+                                            setPassInput('');
+                                            setNewPassInput('');
+                                            setConfirmPassInput('');
+                                        }}
+                                    >
+                                        <Text style={styles.cancelButtonText}>{t.cancel}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.modalButton, { backgroundColor: colors.primary, flex: 1 }]}
+                                        onPress={async () => {
+                                            const valid = await SecurityService.validatePassword(passInput);
+                                            if (!valid) {
+                                                Alert.alert('Error', t.wrongPassword);
+                                                return;
+                                            }
+                                            if (newPassInput !== confirmPassInput) {
+                                                Alert.alert('Error', t.passwordsNoMatch);
+                                                return;
+                                            }
+                                            await SecurityService.setPassword(newPassInput);
+                                            Alert.alert('Success', 'Password Changed');
+                                            setSecurityStep('menu');
+                                            setPassInput('');
+                                            setNewPassInput('');
+                                            setConfirmPassInput('');
+                                        }}
+                                    >
+                                        <Text style={styles.saveButtonText}>{t.save}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+
+                        {isSecurityEnabled && securityStep === 'hint' && (
+                            <View>
+                                <ThemedText style={styles.inputLabel}>{t.hintQuestion}</ThemedText>
+                                <TextInput
+                                    style={[styles.input, isDark && styles.inputDark]}
+                                    value={hintQInput}
+                                    onChangeText={setHintQInput}
+                                    placeholder="e.g. First pet's name"
+                                    placeholderTextColor="#9CA3AF"
+                                />
+                                <ThemedText style={styles.inputLabel}>{t.hintAnswer}</ThemedText>
+                                <TextInput
+                                    style={[styles.input, isDark && styles.inputDark]}
+                                    value={hintAInput}
+                                    onChangeText={setHintAInput}
+                                    placeholder="..."
+                                    placeholderTextColor="#9CA3AF"
+                                />
+
+                                <View style={styles.modalButtons}>
+                                    <TouchableOpacity
+                                        style={[styles.modalButton, styles.cancelButton, { flex: 1 }]}
+                                        onPress={() => {
+                                            setSecurityStep('menu');
+                                            setHintQInput('');
+                                            setHintAInput('');
+                                        }}
+                                    >
+                                        <Text style={styles.cancelButtonText}>{t.cancel}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.modalButton, { backgroundColor: colors.primary, flex: 1 }]}
+                                        onPress={async () => {
+                                            if (!hintQInput || !hintAInput) return;
+                                            await SecurityService.setHint(hintQInput, hintAInput);
+                                            Alert.alert('Success', 'Hint Saved');
+                                            setSecurityStep('menu');
+                                            setHintQInput('');
+                                            setHintAInput('');
+                                        }}
+                                    >
+                                        <Text style={styles.saveButtonText}>{t.save}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+
+                        {isSecurityEnabled && securityStep === 'disable' && (
+                            <View>
+                                <ThemedText style={styles.inputLabel}>{t.enterPassword}</ThemedText>
+                                <TextInput
+                                    style={[styles.input, isDark && styles.inputDark]}
+                                    value={passInput}
+                                    onChangeText={setPassInput}
+                                    secureTextEntry
+                                    keyboardType="numeric"
+                                />
+                                <View style={styles.modalButtons}>
+                                    <TouchableOpacity
+                                        style={[styles.modalButton, styles.cancelButton, { flex: 1 }]}
+                                        onPress={() => {
+                                            setSecurityStep('menu');
+                                            setPassInput('');
+                                        }}
+                                    >
+                                        <Text style={styles.cancelButtonText}>{t.cancel}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.modalButton, { backgroundColor: colors.error, flex: 1 }]}
+                                        onPress={async () => {
+                                            const valid = await SecurityService.validatePassword(passInput);
+                                            if (!valid) {
+                                                Alert.alert('Error', t.wrongPassword);
+                                                return;
+                                            }
+                                            await SecurityService.setEnabled(false);
+                                            await checkSecurityStatus();
+                                            setIsSecurityModalVisible(false);
+                                            setSecurityStep('menu');
+                                            setPassInput('');
+                                        }}
+                                    >
+                                        <Text style={styles.saveButtonText}>Confirm Disable</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            </Modal>
         </ThemedView>
     );
 }
@@ -3180,7 +3711,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFFFFF',
         borderRadius: 24,
         padding: 24,
-        width: '85%',
+        width: '90%',
+        maxWidth: 550,
     },
     modalContentDark: {
         backgroundColor: '#1F2937',
@@ -3241,7 +3773,6 @@ const styles = StyleSheet.create({
     },
     tab: {
         paddingVertical: 8,
-        paddingHorizontal: 16,
         borderRadius: 20,
     },
     activeTab: {
@@ -3257,6 +3788,7 @@ const styles = StyleSheet.create({
     },
     categoriesContainer: {
         flex: 1,
+        padding: 20,
     },
     addCategoryBtn: {
         flexDirection: 'row',

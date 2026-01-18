@@ -12,6 +12,22 @@ Notifications.setNotificationHandler({
     }),
 });
 
+// Response listener to handle buttons
+Notifications.addNotificationResponseReceivedListener(async response => {
+    const actionId = response.actionIdentifier;
+    const goalId = response.notification.request.content.data?.goalId;
+
+    if (actionId === 'stop' && goalId) {
+        console.log('[NotificationService] Action: Stop for Goal:', goalId);
+        // This stops current sound (system level) and we can potentially clear future ones
+        // But we need the list of IDs... maybe easier to just clear all scheduled?
+        // For now, let's just log. Clearing specific IDs requires database access or storage.
+    } else if (actionId === 'done' && goalId) {
+        console.log('[NotificationService] Action: Done for Goal:', goalId);
+        // Mark goal as completed in storage?
+    }
+});
+
 export const NotificationService = {
     registerForPushNotificationsAsync: async () => {
         let token;
@@ -24,6 +40,25 @@ export const NotificationService = {
                 lightColor: '#FF231F7C',
             });
         }
+
+        // Define Actions
+        await Notifications.setNotificationCategoryAsync('reminder', [
+            {
+                identifier: 'stop',
+                buttonTitle: 'Tắt chuông',
+                options: { isDestructive: true },
+            },
+            {
+                identifier: 'done',
+                buttonTitle: 'Đã xong',
+                options: { isAuthenticationRequired: false },
+            },
+            {
+                identifier: 'snooze',
+                buttonTitle: 'Nhắc lại sau 5p',
+                options: { isAuthenticationRequired: false },
+            }
+        ]);
 
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
@@ -44,19 +79,34 @@ export const NotificationService = {
         body: string,
         triggerDate: Date,
         soundUri?: string,
-        imageUri?: string
+        imageUri?: string,
+        categoryIdentifier: string = 'reminder',
+        repeats: boolean = false,
+        goalId?: string
     ): Promise<string> => {
-        const trigger = triggerDate.getTime() - Date.now();
-        if (trigger <= 0) return '';
+        if (!triggerDate || isNaN(triggerDate.getTime())) {
+            console.error('[NotificationService] scheduleReminder received an invalid date object.');
+            return '';
+        }
+        const triggerMillis = triggerDate.getTime() - Date.now();
+        console.log(`[NotificationService] Scheduling "${title}" in ${Math.round(triggerMillis / 1000)}s (${triggerDate.toLocaleString()}) - Category: ${categoryIdentifier}, Repeats: ${repeats}, Goal: ${goalId}`);
+
+        if (triggerMillis <= 0 && !repeats) {
+            console.warn('[NotificationService] Trigger date is in the past and not repeating, skipping.');
+            return '';
+        }
 
         const content: Notifications.NotificationContentInput = {
             title,
             body,
             sound: true,
-            data: { imageUri },
+            data: { imageUri, goalId },
+            categoryIdentifier,
+            attachments: imageUri ? [{ url: imageUri, identifier: 'image' } as any] : [],
         };
 
         if (soundUri) {
+            console.log('[NotificationService] Using custom sound:', soundUri);
             content.sound = soundUri;
         }
 
@@ -69,20 +119,41 @@ export const NotificationService = {
             } as any];
         }
 
-        return await Notifications.scheduleNotificationAsync({
-            content,
-            trigger: {
-                type: Notifications.SchedulableTriggerInputTypes.DATE,
-                date: triggerDate,
-            } as unknown as Notifications.NotificationTriggerInput,
-        });
+        try {
+            const trigger: any = repeats
+                ? {
+                    type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+                    hour: triggerDate.getHours(),
+                    minute: triggerDate.getMinutes(),
+                    repeats: true,
+                }
+                : {
+                    type: Notifications.SchedulableTriggerInputTypes.DATE,
+                    date: triggerDate,
+                };
+
+            const id = await Notifications.scheduleNotificationAsync({
+                content,
+                trigger,
+            });
+            console.log('[NotificationService] Scheduled successfully. ID:', id);
+            return id;
+        } catch (error) {
+            console.error('[NotificationService] Error scheduling notification:', error);
+            return '';
+        }
     },
 
     cancelNotification: async (id: string) => {
         try {
-            await Notifications.cancelScheduledNotificationAsync(id);
+            if (!id) return;
+            const ids = id.split(',');
+            for (const notifId of ids) {
+                console.log('[NotificationService] Canceling scheduled notification:', notifId);
+                await Notifications.cancelScheduledNotificationAsync(notifId);
+            }
         } catch (error) {
-            console.error("Error canceling notification:", error);
+            console.error("[NotificationService] Error canceling notification:", error);
         }
     },
 
@@ -93,24 +164,26 @@ export const NotificationService = {
     // Helper to calculate trigger date
     // offsetMinutes: how many minutes BEFORE the deadline to notify
     calculateTriggerDate: (deadlineStr: string, offsetMinutes: number): Date | null => {
-        // Simple parsing - assumes DD/MM/YYYY
-        // Note: For production, use date-fns or similar for robust parsing
+        // 1. Try DD/MM/YYYY format
         const parts = deadlineStr.split('/');
-        if (parts.length !== 3) return null;
+        if (parts.length === 3) {
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const year = parseInt(parts[2], 10);
+            const deadline = new Date(year, month, day);
+            deadline.setHours(9, 0, 0, 0); // Default to 9:00 AM
+            if (!isNaN(deadline.getTime())) {
+                return new Date(deadline.getTime() - offsetMinutes * 60000);
+            }
+        }
 
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        const year = parseInt(parts[2], 10);
+        // 2. Try ISO or other formats
+        const d = new Date(deadlineStr);
+        if (!isNaN(d.getTime())) {
+            return new Date(d.getTime() - offsetMinutes * 60000);
+        }
 
-        const deadline = new Date(year, month, day);
-        // Set to say 9 AM on the deadline day? Or just the date?
-        // Let's assume 9:00 AM if no time is specified, for 'Reminders'
-        deadline.setHours(9, 0, 0, 0);
-
-        const trigger = new Date(deadline.getTime() - offsetMinutes * 60000);
-
-        // If trigger is in the past, maybe don't schedule or schedule immediately?
-        // For now return it, scheduler might handle it (runs immediately if in past usually)
-        return trigger;
+        console.warn('[NotificationService] calculateTriggerDate received an invalid date string:', deadlineStr);
+        return null;
     }
 };
