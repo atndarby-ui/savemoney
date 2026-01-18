@@ -3,13 +3,16 @@ import { Platform } from 'react-native';
 
 // Configure how notifications behave when the app is in foreground
 Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-    }),
+    handleNotification: async () => {
+        console.log('[NotificationService] Incoming notification in foreground...');
+        return {
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+            shouldShowBanner: true,
+            shouldShowList: true,
+        };
+    },
 });
 
 // Response listener to handle buttons
@@ -84,6 +87,16 @@ export const NotificationService = {
         repeats: boolean = false,
         goalId?: string
     ): Promise<string> => {
+        // Request permissions first
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== 'granted') {
+            const { status: newStatus } = await Notifications.requestPermissionsAsync();
+            if (newStatus !== 'granted') {
+                console.warn('[NotificationService] Permissions not granted for notifications.');
+                return '';
+            }
+        }
+
         if (!triggerDate || isNaN(triggerDate.getTime())) {
             console.error('[NotificationService] scheduleReminder received an invalid date object.');
             return '';
@@ -120,17 +133,42 @@ export const NotificationService = {
         }
 
         try {
-            const trigger: any = repeats
-                ? {
-                    type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-                    hour: triggerDate.getHours(),
-                    minute: triggerDate.getMinutes(),
-                    repeats: true,
+            let trigger: any;
+
+            if (repeats) {
+                if (Platform.OS === 'android') {
+                    // Android does not support 'calendar' trigger. Use 'daily' for basic repeats.
+                    trigger = {
+                        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+                        hour: triggerDate.getHours(),
+                        minute: triggerDate.getMinutes(),
+                        channelId: 'default',
+                    };
+                    console.log('[NotificationService] Using DAILY trigger for Android repeat');
+                } else {
+                    trigger = {
+                        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+                        hour: triggerDate.getHours(),
+                        minute: triggerDate.getMinutes(),
+                        repeats: true,
+                    };
                 }
-                : {
-                    type: Notifications.SchedulableTriggerInputTypes.DATE,
-                    date: triggerDate,
-                };
+            } else {
+                if (Platform.OS === 'android') {
+                    // For Android, even for one-time, we can use DATE or TIME_INTERVAL
+                    // But to specify channelId, we might need object format
+                    trigger = {
+                        type: Notifications.SchedulableTriggerInputTypes.DATE,
+                        date: triggerDate,
+                        channelId: 'default',
+                    };
+                } else {
+                    trigger = {
+                        type: Notifications.SchedulableTriggerInputTypes.DATE,
+                        date: triggerDate,
+                    };
+                }
+            }
 
             const id = await Notifications.scheduleNotificationAsync({
                 content,
