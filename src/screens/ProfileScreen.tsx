@@ -2362,17 +2362,36 @@ export default function ProfileScreen({
                                 value={exactTime}
                                 mode="time"
                                 is24Hour={true}
-                                display="default"
+                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                                 onChange={handleExactTimeChange}
                             />
                         )}
-                        {Platform.OS === 'ios' && showExactTimePicker && (
-                            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: isDark ? '#374151' : 'white', padding: 10, flexDirection: 'row', justifyContent: 'flex-end', gap: 20 }}>
-                                <TouchableOpacity onPress={() => setShowExactTimePicker(false)}>
-                                    <Text style={{ color: 'red', fontSize: 16 }}>Cancel</Text>
+                        {Platform.OS === 'ios' && (showDatePicker || showExactTimePicker) && (
+                            <View style={{
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                backgroundColor: isDark ? '#1F2937' : 'white',
+                                padding: 12,
+                                flexDirection: 'row',
+                                justifyContent: 'flex-end',
+                                gap: 20,
+                                borderTopWidth: 1,
+                                borderTopColor: isDark ? '#374151' : '#E5E7EB',
+                                borderBottomLeftRadius: 24,
+                                borderBottomRightRadius: 24,
+                                zIndex: 1000
+                            }}>
+                                <TouchableOpacity onPress={() => { setShowExactTimePicker(false); setShowDatePicker(false); }}>
+                                    <Text style={{ color: colors.error || 'red', fontSize: 16, fontWeight: '500' }}>
+                                        {language === 'Tiếng Việt' ? 'Hủy' : 'Cancel'}
+                                    </Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setShowExactTimePicker(false)}>
-                                    <Text style={{ color: '#007AFF', fontSize: 16, fontWeight: 'bold' }}>Done</Text>
+                                <TouchableOpacity onPress={() => { setShowExactTimePicker(false); setShowDatePicker(false); }}>
+                                    <Text style={{ color: colors.primary || '#007AFF', fontSize: 16, fontWeight: 'bold' }}>
+                                        {language === 'Tiếng Việt' ? 'Xong' : 'Done'}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
                         )}
