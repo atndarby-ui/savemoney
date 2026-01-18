@@ -12,7 +12,9 @@ import {
     Alert,
     ActivityIndicator,
     KeyboardAvoidingView,
-    Platform
+    Platform,
+    Linking,
+    AppState
 } from 'react-native';
 import CalendarScreen from './CalendarScreen';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
@@ -867,6 +869,27 @@ export default function ProfileScreen({
             return;
         }
 
+        // Check Notification Permissions if reminder enabled
+        if (reminderEnabled) {
+            const status = await NotificationService.checkPermissions();
+            if (status !== 'granted') {
+                Alert.alert(
+                    language === 'Tiếng Việt' ? 'Thông báo bị tắt' : 'Notifications Disabled',
+                    language === 'Tiếng Việt'
+                        ? 'Vui lòng bật thông báo trong Cài đặt để nhận nhắc nhở.'
+                        : 'Please enable notifications in Settings to receive reminders.',
+                    [
+                        { text: t.cancel, style: 'cancel' },
+                        {
+                            text: language === 'Tiếng Việt' ? 'Mở Cài đặt' : 'Open Settings',
+                            onPress: () => Linking.openSettings()
+                        }
+                    ]
+                );
+                return;
+            }
+        }
+
         let notifId;
         let triggerDate: Date | null = null;
         let notifTitle = '';
@@ -1287,8 +1310,8 @@ export default function ProfileScreen({
     };
 
     const handleNotificationSettings = async () => {
-        const granted = await NotificationService.registerForPushNotificationsAsync();
-        setAreNotificationsAllowed(!!granted);
+        const status = await NotificationService.checkPermissions();
+        setAreNotificationsAllowed(status === 'granted');
         setIsNotifSettingsVisible(true);
     };
 
@@ -2676,12 +2699,34 @@ export default function ProfileScreen({
                                 value={areNotificationsAllowed}
                                 onValueChange={async (val) => {
                                     if (val) {
-                                        const granted = await NotificationService.registerForPushNotificationsAsync();
-                                        setAreNotificationsAllowed(!!granted);
-                                        if (!granted) Alert.alert('Permission Denied', 'Please enable notifications in system settings.');
+                                        const status = await NotificationService.checkPermissions();
+                                        if (status !== 'granted') {
+                                            const granted = await NotificationService.registerForPushNotificationsAsync();
+                                            if (granted) {
+                                                setAreNotificationsAllowed(true);
+                                            } else {
+                                                Alert.alert(
+                                                    language === 'Tiếng Việt' ? 'Quyền bị từ chối' : 'Permission Denied',
+                                                    language === 'Tiếng Việt'
+                                                        ? 'Vui lòng bật thông báo trong Cài đặt hệ thống.'
+                                                        : 'Please enable notifications in system settings.',
+                                                    [
+                                                        { text: t.cancel, style: 'cancel' },
+                                                        {
+                                                            text: language === 'Tiếng Việt' ? 'Mở Cài đặt' : 'Open Settings',
+                                                            onPress: () => Linking.openSettings()
+                                                        }
+                                                    ]
+                                                );
+                                                setAreNotificationsAllowed(false);
+                                            }
+                                        } else {
+                                            setAreNotificationsAllowed(true);
+                                        }
                                     } else {
                                         setAreNotificationsAllowed(false);
-                                        // In reality, can't "un-grant" from app, but simply won't schedule future ones
+                                        // In reality, can't "un-grant" fully from app logic alone without system settings, 
+                                        // but we can stop scheduling.
                                     }
                                 }}
                                 trackColor={{ false: '#767577', true: '#10b981' }}

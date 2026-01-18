@@ -32,15 +32,23 @@ Notifications.addNotificationResponseReceivedListener(async response => {
 });
 
 export const NotificationService = {
+    checkPermissions: async () => {
+        const { status } = await Notifications.getPermissionsAsync();
+        return status;
+    },
+
     registerForPushNotificationsAsync: async () => {
         let token;
 
         if (Platform.OS === 'android') {
             await Notifications.setNotificationChannelAsync('default', {
-                name: 'default',
+                name: 'Nhắc nhở', // User friendly name
                 importance: Notifications.AndroidImportance.MAX,
                 vibrationPattern: [0, 250, 250, 250],
                 lightColor: '#FF231F7C',
+                lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC, // Show content on lock screen
+                bypassDnd: true, // High priority
+                sound: 'default',
             });
         }
 
