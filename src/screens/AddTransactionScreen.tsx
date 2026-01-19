@@ -20,6 +20,8 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { Transaction, Category } from '../types';
+import { CATEGORIES } from '../constants';
+import { ICONS3D } from '../constants/icons3d';
 
 interface AddTransactionScreenProps {
     navigation: any;
@@ -63,6 +65,7 @@ export default function AddTransactionScreen({
     const [newCatName, setNewCatName] = useState('');
     const [newCatIcon, setNewCatIcon] = useState(EMOJI_LIST[0]);
     const [newCatColor, setNewCatColor] = useState(COLOR_PALETTE[0]);
+    const [newCatIcon3dId, setNewCatIcon3dId] = useState<string | null>(null);
 
     // Image Modal State
     const [viewImageModalVisible, setViewImageModalVisible] = useState(false);
@@ -112,7 +115,8 @@ export default function AddTransactionScreen({
             name: newCatName,
             icon: newCatIcon,
             type: type,
-            color: newCatColor
+            color: newCatColor,
+            icon3dId: newCatIcon3dId || undefined
         };
 
         onAddCategory(newCat);
@@ -381,7 +385,16 @@ export default function AddTransactionScreen({
                                                 >
                                                     <View style={styles.transactionCardHeader}>
                                                         <View style={[styles.txIcon, { backgroundColor: cat?.color + '20' || '#F3F4F6' }]}>
-                                                            <Text style={{ fontSize: 24 }}>{cat?.icon || '💰'}</Text>
+                                                            {(() => {
+                                                                if (cat?.icon3dId) {
+                                                                    const found = ICONS3D.find(i => i.id === cat.icon3dId);
+                                                                    if (found) return <Image source={found.image} style={{ width: 28, height: 28 }} resizeMode="contain" />;
+                                                                }
+                                                                if (cat?.image || (cat && CATEGORIES.find(c => c.id === cat.id)?.image)) {
+                                                                    return <Image source={cat?.image || CATEGORIES.find(c => c.id === cat!.id)?.image} style={{ width: 28, height: 28 }} resizeMode="contain" />;
+                                                                }
+                                                                return <Text style={{ fontSize: 24 }}>{cat?.icon || '💰'}</Text>;
+                                                            })()}
                                                         </View>
                                                         <View style={{ flex: 1, marginLeft: 12 }}>
                                                             <Text style={styles.txNote}>{tx.note || 'Không có ghi chú'}</Text>
@@ -497,7 +510,16 @@ export default function AddTransactionScreen({
                                                             { backgroundColor: cat.color + '10' },
                                                             selectedCategory === cat.id && { backgroundColor: cat.color, elevation: 4, shadowColor: cat.color, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }
                                                         ]}>
-                                                            <Text style={{ fontSize: 24 }}>{cat.icon}</Text>
+                                                            {(() => {
+                                                                if (cat.icon3dId) {
+                                                                    const found = ICONS3D.find(i => i.id === cat.icon3dId);
+                                                                    if (found) return <Image source={found.image} style={{ width: 32, height: 32 }} resizeMode="contain" />;
+                                                                }
+                                                                if (cat.image || CATEGORIES.find(c => c.id === cat.id)?.image) {
+                                                                    return <Image source={cat.image || CATEGORIES.find(c => c.id === cat.id)?.image} style={{ width: 32, height: 32 }} resizeMode="contain" />;
+                                                                }
+                                                                return <Text style={{ fontSize: 24 }}>{cat.icon}</Text>;
+                                                            })()}
                                                         </View>
                                                         <Text style={[
                                                             styles.categoryName,
@@ -575,22 +597,23 @@ export default function AddTransactionScreen({
                                     autoFocus
                                 />
                             </View>
-
                             <View style={styles.formItem}>
-                                <Text style={styles.formLabel}>Biểu tượng</Text>
+                                <Text style={styles.formLabel}>Biểu tượng (3D)</Text>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.emojiPicker}>
-                                    {EMOJI_LIST.map(emoji => (
+                                    {ICONS3D.map((item) => (
                                         <TouchableOpacity
-                                            key={emoji}
-                                            style={[styles.emojiItem, newCatIcon === emoji && styles.selectedItem]}
-                                            onPress={() => setNewCatIcon(emoji)}
+                                            key={item.id}
+                                            style={[
+                                                styles.emojiItem,
+                                                newCatIcon3dId === item.id && styles.selectedItem
+                                            ]}
+                                            onPress={() => setNewCatIcon3dId(item.id)}
                                         >
-                                            <Text style={{ fontSize: 24 }}>{emoji}</Text>
+                                            <Image source={item.image} style={{ width: 32, height: 32 }} resizeMode="contain" />
                                         </TouchableOpacity>
                                     ))}
                                 </ScrollView>
                             </View>
-
                             <View style={styles.formItem}>
                                 <Text style={styles.formLabel}>Màu sắc</Text>
                                 <View style={styles.colorPicker}>
@@ -704,7 +727,16 @@ export default function AddTransactionScreen({
                                                                 transform: [{ scale: 1.1 }]
                                                             }
                                                         ]}>
-                                                            <Text style={{ fontSize: 20 }}>{cat.icon}</Text>
+                                                            {(() => {
+                                                                if (cat.icon3dId) {
+                                                                    const found = ICONS3D.find(i => i.id === cat.icon3dId);
+                                                                    if (found) return <Image source={found.image} style={{ width: 24, height: 24 }} resizeMode="contain" />;
+                                                                }
+                                                                if (cat.image || CATEGORIES.find(c => c.id === cat.id)?.image) {
+                                                                    return <Image source={cat.image || CATEGORIES.find(c => c.id === cat.id)?.image} style={{ width: 24, height: 24 }} resizeMode="contain" />;
+                                                                }
+                                                                return <Text style={{ fontSize: 18 }}>{cat.icon}</Text>;
+                                                            })()}
                                                         </View>
                                                         <Text style={[
                                                             styles.editCategoryName,

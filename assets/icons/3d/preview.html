@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+
+        .grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .item {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            width: 120px;
+        }
+
+        img {
+            width: 64px;
+            height: 64px;
+            object-fit: contain;
+        }
+
+        .name {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #555;
+            word-break: break-all;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Extracted Icons</h1>
+    <p>Please identify the icons and rename them to: food.png, transport.png, etc.</p>
+    <div class="grid" id="grid"></div>
+    <script>
+        const count = 123;
+        const grid = document.getElementById('grid');
+        for (let i = 0; i < count; i++) {
+            const div = document.createElement('div');
+            div.className = 'item';
+            div.innerHTML = `
+                <img src="extracted_${i}.png" />
+                <div class="name">extracted_${i}.png</div>
+            `;
+            grid.appendChild(div);
+        }
+    </script>
+</body>
+
+</html>

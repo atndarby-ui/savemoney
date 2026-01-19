@@ -7,7 +7,8 @@ import {
     Dimensions,
     Alert,
     ActivityIndicator,
-    Platform
+    Platform,
+    Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -374,7 +375,15 @@ export default function SmartInputScreen({ navigation }: SmartInputScreenProps) 
                             {isLoading ? (
                                 <ActivityIndicator color="#FFF" size="large" />
                             ) : (
-                                <Ionicons name={recording ? "stop" : "mic"} size={44} color="#FFFFFF" />
+                                recording ? (
+                                    <Ionicons name="stop" size={44} color="#FFFFFF" />
+                                ) : (
+                                    <Image
+                                        source={require('../../assets/icons/3d/fab_mic.png')}
+                                        style={{ width: 60, height: 60 }}
+                                        resizeMode="contain"
+                                    />
+                                )
                             )}
                         </TouchableOpacity>
                         <Text style={[styles.micLabel, isDark && styles.textLight]}>
@@ -390,7 +399,11 @@ export default function SmartInputScreen({ navigation }: SmartInputScreenProps) 
                             disabled={isLoading || !!recording}
                         >
                             <View style={styles.iconCircle}>
-                                <Ionicons name="camera" size={26} color="#6366F1" />
+                                <Image
+                                    source={require('../../assets/icons/3d/fab_camera.png')}
+                                    style={{ width: 34, height: 34 }}
+                                    resizeMode="contain"
+                                />
                             </View>
                             <Text style={[styles.actionText, isDark && styles.textDark]}>
                                 Quét hóa đơn

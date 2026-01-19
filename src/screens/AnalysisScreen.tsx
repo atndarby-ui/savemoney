@@ -250,7 +250,7 @@ export default function AnalysisScreen({
                                     <Text style={styles.methodIconSmall}>{method.icon}</Text>
                                 </View>
                                 <ThemedText variant="bodyBold" style={styles.methodTitle}>{method.title}</ThemedText>
-                                <ThemedText variant="small" style={{ color: colors.textSecondary }} numberOfLines={1}>{method.subtitle}</ThemedText>
+                                <ThemedText variant="small" style={{ color: colors.textSecondary, textAlign: 'center' }} numberOfLines={1}>{method.subtitle}</ThemedText>
 
                                 <View
                                     style={[
@@ -358,6 +358,7 @@ const styles = StyleSheet.create({
         width: (width - 56) / 2,
         padding: 16,
         borderRadius: 24,
+        alignItems: 'center',
         ...Platform.select({
             ios: {
                 shadowColor: '#000',
@@ -371,28 +372,28 @@ const styles = StyleSheet.create({
         }),
     },
     methodIconBox: {
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
         borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 12,
     },
     methodIconSmall: {
-        fontSize: 22,
+        fontSize: 24,
     },
     methodTitle: {
         marginBottom: 4,
+        textAlign: 'center',
     },
     miniAction: {
         marginTop: 12,
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderRadius: 10,
-        alignSelf: 'flex-start',
+        paddingVertical: 8,
+        paddingHorizontal: 20,
+        borderRadius: 12,
     },
     miniActionText: {
-        fontSize: 10,
+        fontSize: 12,
         fontWeight: 'bold',
     },
 });

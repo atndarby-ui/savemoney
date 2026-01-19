@@ -13,6 +13,8 @@ import { translations } from '../constants/translations';
 import { Transaction, Category } from '../types';
 import { getLunarDate } from '../utils/lunar';
 import { getGoldPrice, getFinancialRates } from '../services/finance';
+import { CATEGORIES } from '../constants';
+import { ICONS3D } from '../constants/icons3d';
 
 // Create animated components
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
@@ -118,6 +120,15 @@ export default function CalendarScreen({
                 d.getFullYear() === selectedDate.getFullYear();
         });
     }, [transactions, selectedDate]);
+    const selectedDaySummary = useMemo(() => {
+        let income = 0;
+        let expense = 0;
+        selectedDayTransactions.forEach(tx => {
+            if (tx.type === 'income') income += tx.amount;
+            else if (tx.type === 'expense') expense += tx.amount;
+        });
+        return { income, expense };
+    }, [selectedDayTransactions]);
 
     // Generate calendar days for current month
     const calendarDays = useMemo(() => {
@@ -472,6 +483,26 @@ export default function CalendarScreen({
                         </Text>
                     </View>
 
+                    {/* Daily Summary Cards */}
+                    <View style={styles.dailySummaryContainer}>
+                        <View style={[styles.dailyCard, { backgroundColor: isDark ? '#064e3b' : '#ecfdf5' }]}>
+                            <Text style={[styles.dailyLabel, { color: isDark ? '#FFFFFF' : '#059669' }]}>
+                                {language === 'Tiếng Việt' ? 'Thu nhập' : 'Income'}
+                            </Text>
+                            <Text style={[styles.dailyValue, { color: isDark ? '#FFFFFF' : '#059669' }]}>
+                                {isAmountVisible ? `+${formatCurrency(selectedDaySummary.income)}` : '******'}
+                            </Text>
+                        </View>
+                        <View style={[styles.dailyCard, { backgroundColor: isDark ? '#7f1d1d' : '#fef2f2' }]}>
+                            <Text style={[styles.dailyLabel, { color: isDark ? '#FFFFFF' : '#dc2626' }]}>
+                                {language === 'Tiếng Việt' ? 'Chi tiêu' : 'Expense'}
+                            </Text>
+                            <Text style={[styles.dailyValue, { color: isDark ? '#FFFFFF' : '#dc2626' }]}>
+                                {isAmountVisible ? `-${formatCurrency(selectedDaySummary.expense)}` : '******'}
+                            </Text>
+                        </View>
+                    </View>
+
                     {selectedDayTransactions.length === 0 ? (
                         <Text style={[styles.noTxText, isDark && styles.textLight]}>
                             {t.noTx}
@@ -495,7 +526,16 @@ export default function CalendarScreen({
                                         <View
                                             style={[styles.txIcon, isDark && styles.txIconDark]}
                                         >
-                                            <Text style={styles.txIconText}>{cat?.icon}</Text>
+                                            {(() => {
+                                                if (cat?.icon3dId) {
+                                                    const found = ICONS3D.find(i => i.id === cat.icon3dId);
+                                                    if (found) return <Image source={found.image} style={{ width: 28, height: 28 }} resizeMode="contain" />;
+                                                }
+                                                if (cat?.image || (cat && CATEGORIES.find(c => c.id === cat.id)?.image)) {
+                                                    return <Image source={cat?.image || CATEGORIES.find(c => c.id === cat!.id)?.image} style={{ width: 28, height: 28 }} resizeMode="contain" />;
+                                                }
+                                                return <Text style={[styles.txIconText, isDark && styles.textDark]}>{cat?.icon || '💰'}</Text>;
+                                            })()}
                                         </View>
                                         <View>
                                             <Text style={[styles.txName, isDark && styles.textDark]}>
@@ -1019,5 +1059,26 @@ const styles = StyleSheet.create({
         width: width,
         height: width * 1.5,
         maxHeight: '80%',
+    },
+    dailySummaryContainer: {
+        flexDirection: 'row',
+        gap: 12,
+        marginBottom: 20,
+    },
+    dailyCard: {
+        flex: 1,
+        padding: 16,
+        borderRadius: 16,
+        justifyContent: 'center',
+    },
+    dailyLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        marginBottom: 4,
+        opacity: 0.8,
+    },
+    dailyValue: {
+        fontSize: 16,
+        fontWeight: 'bold',
     },
 });

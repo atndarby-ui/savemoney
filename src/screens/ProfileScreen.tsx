@@ -32,6 +32,8 @@ import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 
 import { db } from '../config/firebase';
 import { Database } from '../services/Database';
 import { SecurityService } from '../services/SecurityService';
+import { CATEGORIES } from '../constants';
+import { ICONS3D } from '../constants/icons3d';
 import { WebView } from 'react-native-webview';
 import { useTheme, ACCENT_COLORS, AccentColorKey } from '../context/ThemeContext';
 import { ThemedText, ThemedView, GlassView } from '../components/ThemedComponents';
@@ -627,6 +629,7 @@ export default function ProfileScreen({
     const [editCatIcon, setEditCatIcon] = useState('');
     const [editCatType, setEditCatType] = useState<'income' | 'expense'>('expense');
     const [editCatColor, setEditCatColor] = useState('#10b981');
+    const [editCatIcon3dId, setEditCatIcon3dId] = useState<string | null>(null);
 
     const defaultAvatar = 'https://avataaars.io/?avatarStyle=Circle&topType=LongHairStraight&accessoriesType=Blank&hairColor=BrownDark&facialHairType=Blank&clotheType=BlazerShirt&eyeType=Default&eyebrowType=Default&mouthType=Default&skinColor=Light';
 
@@ -1395,12 +1398,14 @@ export default function ProfileScreen({
             setEditCatIcon(cat.icon);
             setEditCatType(cat.type);
             setEditCatColor(cat.color);
+            setEditCatIcon3dId(cat.icon3dId || null);
         } else {
             setSelectedCategory(null);
             setEditCatName('');
             setEditCatIcon('📁');
             setEditCatType('expense');
             setEditCatColor('#10b981');
+            setEditCatIcon3dId(null);
         }
         setIsEditingCategory(true);
     };
@@ -1414,6 +1419,7 @@ export default function ProfileScreen({
             icon: editCatIcon || '📁',
             type: editCatType,
             color: editCatColor,
+            icon3dId: editCatIcon3dId || undefined
         };
 
         if (selectedCategory) {
@@ -1436,7 +1442,7 @@ export default function ProfileScreen({
 
     return (
         <ThemedView style={styles.container}>
-            <View style={[styles.tabContainer, { paddingHorizontal: 16, paddingBottom: 8 }]}>
+            <View style={[styles.tabContainer, { borderBottomWidth: 0, paddingHorizontal: 16, paddingBottom: 8 }]}>
                 <View style={{ flexDirection: 'row', width: '100%', gap: 4 }}>
                     <TouchableOpacity
                         style={[styles.tab, { flex: 1, alignItems: 'center' }, activeTab === 'profile' && { backgroundColor: colors.primary }]}
@@ -1476,9 +1482,15 @@ export default function ProfileScreen({
             <ScrollView
                 style={{ flex: 1, backgroundColor: colors.background }}
                 contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+                overScrollMode="never"
             >
                 {activeTab === 'profile' && (
-                    <Animated.View entering={FadeIn.duration(300)} style={{ flex: 1 }}>
+                    <Animated.View
+                        entering={FadeIn.duration(300)}
+                        style={{ flex: 1 }}
+                        needsOffscreenAlphaCompositing={true}
+                    >
                         {/* Profile Header */}
                         <ThemedView variant="surface" style={[styles.header, { borderColor: colors.border }]}>
                             <View style={styles.avatarContainer}>
@@ -1668,7 +1680,11 @@ export default function ProfileScreen({
                 )}
 
                 {activeTab === 'goals' && (
-                    <Animated.View entering={FadeIn.duration(300)} style={styles.categoriesContainer}>
+                    <Animated.View
+                        entering={FadeIn.duration(300)}
+                        style={styles.categoriesContainer}
+                        needsOffscreenAlphaCompositing={true}
+                    >
                         {/* New 4-Card Creation Row */}
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
                             {[
@@ -1676,28 +1692,28 @@ export default function ProfileScreen({
                                     type: 'subscription',
                                     title: t.typeSubscription,
                                     color: '#E0BBE4', // Purple Pastel
-                                    icon: 'card-outline',
+                                    image: require('../../assets/icons/3d/remind_enroll.png'),
                                     textColor: '#6A1B9A'
                                 },
                                 {
                                     type: 'debt',
                                     title: t.typeDebt,
                                     color: '#B2F7EF', // Mint Pastel
-                                    icon: 'swap-horizontal-outline',
+                                    image: require('../../assets/icons/3d/remind_debt.png'),
                                     textColor: '#00695C'
                                 },
                                 {
                                     type: 'task',
                                     title: t.typeTask,
                                     color: '#FFD3B6', // Peach Pastel
-                                    icon: 'checkbox-outline',
+                                    image: require('../../assets/icons/3d/remind_task.png'),
                                     textColor: '#E65100'
                                 },
                                 {
                                     type: 'plan',
                                     title: t.typePlan,
                                     color: '#D4F1F4', // Pearl Blue Pastel
-                                    icon: 'flag-outline',
+                                    image: require('../../assets/icons/3d/remind_plan.png'),
                                     textColor: '#0277BD'
                                 },
                             ].map((item) => (
@@ -1708,8 +1724,9 @@ export default function ProfileScreen({
                                         backgroundColor: item.color,
                                         borderRadius: 16,
                                         padding: 16,
-                                        minHeight: 100,
-                                        justifyContent: 'space-between',
+                                        minHeight: 110,
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
                                         shadowColor: '#000',
                                         shadowOffset: { width: 0, height: 2 },
                                         shadowOpacity: 0.05,
@@ -1723,20 +1740,21 @@ export default function ProfileScreen({
                                     }}
                                 >
                                     <View style={{
-                                        backgroundColor: 'rgba(255,255,255,0.6)',
-                                        width: 36,
-                                        height: 36,
-                                        borderRadius: 12,
+                                        backgroundColor: 'rgba(255,255,255,0.7)',
+                                        width: 44,
+                                        height: 44,
+                                        borderRadius: 14,
                                         alignItems: 'center',
-                                        justifyContent: 'center'
+                                        justifyContent: 'center',
+                                        marginBottom: 8,
                                     }}>
-                                        <Ionicons name={item.icon as any} size={20} color={item.textColor} />
+                                        <Image source={item.image} style={{ width: 30, height: 30 }} resizeMode="contain" />
                                     </View>
                                     <Text style={{
-                                        fontSize: 16,
+                                        fontSize: 14,
                                         fontWeight: '700',
                                         color: item.textColor,
-                                        marginTop: 8
+                                        textAlign: 'center',
                                     }}>
                                         {item.title}
                                     </Text>
@@ -1773,20 +1791,15 @@ export default function ProfileScreen({
                                                                     type === 'task' ? '#FFF3E0' :
                                                                         type === 'plan' ? '#E1F5FE' : '#EEF2FF'
                                                         }]}>
-                                                            <Ionicons
-                                                                name={
-                                                                    type === 'debt' ? (g.debtType === 'borrowing' ? 'arrow-down-circle' : 'arrow-up-circle') :
-                                                                        type === 'subscription' ? 'card' :
-                                                                            type === 'task' ? 'checkbox' :
-                                                                                type === 'plan' ? 'flag' : 'rocket'
+                                                            <Image
+                                                                source={
+                                                                    type === 'debt' ? require('../../assets/icons/3d/remind_debt.png') :
+                                                                        type === 'subscription' ? require('../../assets/icons/3d/remind_enroll.png') :
+                                                                            type === 'task' ? require('../../assets/icons/3d/remind_task.png') :
+                                                                                type === 'plan' ? require('../../assets/icons/3d/remind_plan.png') : require('../../assets/icons/3d/remind_rocket.png')
                                                                 }
-                                                                size={20}
-                                                                color={
-                                                                    type === 'debt' ? (g.debtType === 'borrowing' ? '#EF4444' : '#10B981') :
-                                                                        type === 'subscription' ? '#8E24AA' :
-                                                                            type === 'task' ? '#EF6C00' :
-                                                                                type === 'plan' ? '#0288D1' : '#6366F1'
-                                                                }
+                                                                style={{ width: 24, height: 24 }}
+                                                                resizeMode="contain"
                                                             />
                                                         </View>
                                                         <View style={{ flex: 1, marginLeft: 16 }}>
@@ -1826,7 +1839,11 @@ export default function ProfileScreen({
                 )}
 
                 {activeTab === 'tools' && (
-                    <Animated.View entering={FadeIn.duration(300)} style={styles.categoriesContainer}>
+                    <Animated.View
+                        entering={FadeIn.duration(300)}
+                        style={styles.categoriesContainer}
+                        needsOffscreenAlphaCompositing={true}
+                    >
                         {/* Native Tools */}
                         <View style={styles.section}>
                             <ThemedText variant="caption" style={styles.sectionTitle}>{t.utilityTools}</ThemedText>
@@ -1897,7 +1914,11 @@ export default function ProfileScreen({
                     </Animated.View>
                 )}
                 {activeTab === 'categories' && (
-                    <Animated.View entering={FadeIn.duration(300)} style={styles.categoriesContainer}>
+                    <Animated.View
+                        entering={FadeIn.duration(300)}
+                        style={styles.categoriesContainer}
+                        needsOffscreenAlphaCompositing={true}
+                    >
                         <TouchableOpacity
                             style={[styles.addCategoryBtn, { backgroundColor: isDark ? 'rgba(236, 72, 153, 0.1)' : '#FCE7F3', borderColor: colors.primary }]}
                             onPress={() => handleCategoryAction()}
@@ -1930,7 +1951,16 @@ export default function ProfileScreen({
                                 <View key={cat.id}>
                                     <View style={styles.menuItem}>
                                         <View style={styles.menuLeft}>
-                                            <Text style={{ fontSize: 24, marginRight: 12 }}>{cat.icon}</Text>
+                                            {(() => {
+                                                if (cat.icon3dId) {
+                                                    const found = ICONS3D.find(i => i.id === cat.icon3dId);
+                                                    if (found) return <Image source={found.image} style={{ width: 32, height: 32, marginRight: 12 }} resizeMode="contain" />;
+                                                }
+                                                if (cat.image || CATEGORIES.find(c => c.id === cat.id)?.image) {
+                                                    return <Image source={cat.image || CATEGORIES.find(c => c.id === cat.id)?.image} style={{ width: 32, height: 32, marginRight: 12 }} resizeMode="contain" />;
+                                                }
+                                                return <Text style={{ fontSize: 24, marginRight: 12 }}>{cat.icon}</Text>;
+                                            })()}
                                             <ThemedText variant="bodyBold">{cat.name}</ThemedText>
                                         </View>
                                         <View style={styles.menuRight}>
@@ -2030,14 +2060,28 @@ export default function ProfileScreen({
                             placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
                         />
 
-                        <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.catIcon}</Text>
-                        <TextInput
-                            style={[styles.input, isDark && styles.inputDark]}
-                            value={editCatIcon}
-                            onChangeText={setEditCatIcon}
-                            placeholder="Dùng emoji (vd: 💰)"
-                            placeholderTextColor={isDark ? '#9CA3AF' : '#6B7280'}
-                        />
+                        <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.catIcon} (3D)</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                                {ICONS3D.map((item) => {
+                                    const isSelected = editCatIcon3dId === item.id;
+                                    return (
+                                        <TouchableOpacity
+                                            key={item.id}
+                                            style={{
+                                                width: 50, height: 50, borderRadius: 12, backgroundColor: isDark ? '#374151' : '#F3F4F6',
+                                                alignItems: 'center', justifyContent: 'center',
+                                                borderWidth: isSelected ? 2 : 0,
+                                                borderColor: colors.primary
+                                            }}
+                                            onPress={() => setEditCatIcon3dId(item.id)}
+                                        >
+                                            <Image source={item.image} style={{ width: 32, height: 32 }} resizeMode="contain" />
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        </ScrollView>
 
                         <Text style={[styles.inputLabel, isDark && styles.textDark]}>{t.catColor}</Text>
                         <View style={styles.colorPicker}>

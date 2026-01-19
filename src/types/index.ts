@@ -16,6 +16,8 @@ export interface Category {
     icon: string;
     type: TransactionType;
     color: string;
+    image?: any;
+    icon3dId?: string;
 }
 
 export type TimeRange = 'today' | '7days' | '30days' | 'month';

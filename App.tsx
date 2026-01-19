@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StatusBar, useColorScheme, View, TouchableOpacity, StyleSheet, Text, AppState, AppStateStatus } from 'react-native';
+import { StatusBar, useColorScheme, View, TouchableOpacity, StyleSheet, Text, AppState, AppStateStatus, Image } from 'react-native';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator, CardStyleInterpolators, TransitionSpecs, StackNavigationOptions } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { Transaction, Message, Category } from './src/types';
 import { INITIAL_TRANSACTIONS, CATEGORIES } from './src/constants';
@@ -75,15 +76,18 @@ const CustomTabBarButton = ({ children, onPress, primaryColor }: any) => (
   >
     <View
       style={{
-        width: 64,
-        height: 64, // Slightly larger
-        borderRadius: 32,
-        backgroundColor: primaryColor,
+        width: 84,
+        height: 84, // Slightly larger
+        borderRadius: 42,
         justifyContent: 'center',
         alignItems: 'center',
       }}
     >
-      <Ionicons name="add" size={38} color="#FFF" />
+      <Image
+        source={require('./assets/icons/3d/tab_add.png')}
+        style={{ width: 84, height: 84 }}
+        resizeMode="contain"
+      />
     </View>
   </TouchableOpacity>
 );
@@ -107,8 +111,8 @@ const TabNavigator = ({
     screenOptions={{
       headerShown: false,
       tabBarStyle: {
-        backgroundColor: theme === 'dark' ? '#1C1419' : '#FFFFFF', // Use subtle dark bg matching palette or just colors.surface
-        borderTopColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+        backgroundColor: theme === 'dark' ? '#000000' : 'transparent', // Transparent to show gradient background in light mode
+        borderTopColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'transparent',
         height: 80,
         paddingBottom: 20,
         paddingTop: 10,
@@ -120,21 +124,38 @@ const TabNavigator = ({
         borderTopWidth: 1,
       },
       tabBarActiveTintColor: primaryColor,
-      tabBarInactiveTintColor: theme === 'dark' ? '#9CA3AF' : '#6B7280',
+      tabBarInactiveTintColor: theme === 'dark' ? '#D1D5DB' : '#6B7280',
       tabBarShowLabel: true,
       tabBarLabelStyle: {
         fontSize: 10,
         fontWeight: '600',
         marginTop: 4,
-      }
+      },
+      tabBarBackground: () => theme === 'dark' ? null : (
+        <LinearGradient
+          colors={['#FFFFFF', '#F0F2F5', '#E2E8F0']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+        />
+      ),
     }}
   >
     <Tab.Screen
       name="Calendar"
       options={{
         tabBarLabel: language === 'Tiếng Việt' ? 'Tổng quan' : 'Overview',
-        tabBarIcon: ({ color }) => (
-          <Ionicons name="home-outline" color={color} size={24} />
+        tabBarIcon: ({ color, focused }) => (
+          <Image
+            source={require('./assets/icons/3d/tab_home.png')}
+            style={{
+              width: 28,
+              height: 28,
+              opacity: focused ? 1 : 0.8,
+              transform: [{ scale: focused ? 1.25 : 1 }]
+            }}
+            resizeMode="contain"
+          />
         ),
       }}
     >
@@ -153,8 +174,17 @@ const TabNavigator = ({
       name="Statistics"
       options={{
         tabBarLabel: language === 'Tiếng Việt' ? 'Thống kê' : 'Stats',
-        tabBarIcon: ({ color }) => (
-          <Ionicons name="stats-chart-outline" color={color} size={24} />
+        tabBarIcon: ({ color, focused }) => (
+          <Image
+            source={require('./assets/icons/3d/tab_stats.png')}
+            style={{
+              width: 28,
+              height: 28,
+              opacity: focused ? 1 : 0.8,
+              transform: [{ scale: focused ? 1.25 : 1 }]
+            }}
+            resizeMode="contain"
+          />
         ),
       }}
     >
@@ -190,8 +220,17 @@ const TabNavigator = ({
       name="Analysis"
       options={{
         tabBarLabel: language === 'Tiếng Việt' ? 'Kế hoạch' : 'Planner',
-        tabBarIcon: ({ color }) => (
-          <Ionicons name="bulb-outline" color={color} size={24} />
+        tabBarIcon: ({ color, focused }) => (
+          <Image
+            source={require('./assets/icons/3d/tab_plan.png')}
+            style={{
+              width: 28,
+              height: 28,
+              opacity: focused ? 1 : 0.8,
+              transform: [{ scale: focused ? 1.25 : 1 }]
+            }}
+            resizeMode="contain"
+          />
         ),
       }}
     >
@@ -205,11 +244,20 @@ const TabNavigator = ({
     </Tab.Screen>
 
     <Tab.Screen
-      name="AIChat"
+      name="Chat"
       options={{
-        tabBarLabel: language === 'Tiếng Việt' ? 'Mentor' : 'AI Chat',
-        tabBarIcon: ({ color }) => (
-          <Ionicons name="chatbubbles-outline" color={color} size={24} />
+        tabBarLabel: 'Mentor',
+        tabBarIcon: ({ color, focused }) => (
+          <Image
+            source={require('./assets/icons/3d/tab_chat.png')}
+            style={{
+              width: 28,
+              height: 28,
+              opacity: focused ? 1 : 0.8,
+              transform: [{ scale: focused ? 1.25 : 1 }]
+            }}
+            resizeMode="contain"
+          />
         ),
       }}
     >
@@ -218,12 +266,12 @@ const TabNavigator = ({
           transactions={transactions}
           messages={chatMessages}
           setMessages={handleSetChatMessages}
+          navigation={navigation}
+          route={route}
           selectedPersonalityId={selectedPersonalityId}
           setSelectedPersonalityId={setSelectedPersonalityId}
           language={language}
           theme={theme}
-          navigation={navigation}
-          route={route}
         />
       )}
     </Tab.Screen>

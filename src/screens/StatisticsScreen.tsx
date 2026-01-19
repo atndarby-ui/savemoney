@@ -3,7 +3,9 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Modal, Dim
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { ThemedView, ThemedText } from '../components/ThemedComponents';
-import { formatCurrency } from '../utils/currency';
+import { formatCurrency, formatCompactCurrency } from '../utils/currency';
+import { CATEGORIES } from '../constants';
+import { ICONS3D } from '../constants/icons3d';
 import { CartesianChart, BarGroup, PolarChart, Pie } from 'victory-native';
 import { translations } from '../constants/translations';
 import { Transaction, Category } from '../types';
@@ -327,7 +329,16 @@ export default function StatisticsScreen({
                                 >
                                     <View style={styles.txLeft}>
                                         <View style={[styles.txIcon, isDark && styles.txIconDark]}>
-                                            <Text style={styles.txIconText}>{cat?.icon || '•'}</Text>
+                                            {(() => {
+                                                if (cat?.icon3dId) {
+                                                    const found = ICONS3D.find(i => i.id === cat.icon3dId);
+                                                    if (found) return <Image source={found.image} style={{ width: 28, height: 28 }} resizeMode="contain" />;
+                                                }
+                                                if (cat?.image || (cat && CATEGORIES.find(c => c.id === cat.id)?.image)) {
+                                                    return <Image source={cat?.image || CATEGORIES.find(c => c.id === cat!.id)?.image} style={{ width: 28, height: 28 }} resizeMode="contain" />;
+                                                }
+                                                return <Text style={styles.txIconText}>{cat?.icon || '•'}</Text>;
+                                            })()}
                                         </View>
                                         <View>
                                             <Text style={[styles.txName, isDark && styles.textDark]}>

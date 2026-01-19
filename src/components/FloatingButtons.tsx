@@ -6,6 +6,7 @@ import {
     Alert,
     ActivityIndicator,
     Animated,
+    Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -373,7 +374,11 @@ export default function FloatingButtons({ navigation, theme = 'light' }: Floatin
                 {isLoading ? (
                     <ActivityIndicator color="#FFF" size="small" />
                 ) : (
-                    <Ionicons name="camera" size={24} color="#FFFFFF" />
+                    <Image
+                        source={require('../../assets/icons/3d/fab_camera.png')}
+                        style={{ width: 34, height: 34 }}
+                        resizeMode="contain"
+                    />
                 )}
             </TouchableOpacity>
 
@@ -400,11 +405,15 @@ export default function FloatingButtons({ navigation, theme = 'light' }: Floatin
                     {isLoading ? (
                         <ActivityIndicator color="#FFF" size="small" />
                     ) : (
-                        <Ionicons
-                            name={recording ? "stop" : "mic"}
-                            size={24}
-                            color="#FFFFFF"
-                        />
+                        recording ? (
+                            <Ionicons name="stop" size={24} color="#FFFFFF" />
+                        ) : (
+                            <Image
+                                source={require('../../assets/icons/3d/fab_mic.png')}
+                                style={{ width: 34, height: 34 }}
+                                resizeMode="contain"
+                            />
+                        )
                     )}
                 </TouchableOpacity>
             </Animated.View>
