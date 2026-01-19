@@ -1436,7 +1436,7 @@ export default function ProfileScreen({
 
     return (
         <ThemedView style={styles.container}>
-            <View style={[styles.tabContainer, { borderBottomColor: colors.border, borderBottomWidth: 1, paddingHorizontal: 16, paddingBottom: 8 }]}>
+            <View style={[styles.tabContainer, { paddingHorizontal: 16, paddingBottom: 8 }]}>
                 <View style={{ flexDirection: 'row', width: '100%', gap: 4 }}>
                     <TouchableOpacity
                         style={[styles.tab, { flex: 1, alignItems: 'center' }, activeTab === 'profile' && { backgroundColor: colors.primary }]}
